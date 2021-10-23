@@ -8,7 +8,7 @@ from torchvision import datasets, transforms
 from torch.optim.lr_scheduler import StepLR
 import matplotlib.pyplot as plt
 
-from model import Net
+from model import Net, ClassifierNet
 
 
 def train_classifier(args, model, device, train_loader, optimizer, epoch):
@@ -61,9 +61,9 @@ def pgd_(model_, x, target, k, eps, eps_step, targeted=True, clip_min=None, clip
     x_max = x + eps
 
     # Randomize the starting point x.
-    x = x + eps * (2 * torch.rand_like(x) - 1)
-    if (clip_min is not None) or (clip_max is not None):
-        x.clamp_(min=clip_min, max=clip_max)
+    # x = x + eps * (2 * torch.rand_like(x) - 1)
+    # if (clip_min is not None) or (clip_max is not None):
+    #     x.clamp_(min=clip_min, max=clip_max)
 
     xs = [x.clone().detach()]
     for i in range(k):
@@ -88,7 +88,8 @@ def train_detector(model, device, train_loader):
         steps = 7
         x_perturbed = torch.zeros(steps + 1, *x_batch.size()).to(device)
         for i in range(len(x_batch)):
-            x_perturbed[:, i, :, :, :] = pgd_(model, x_batch[None, i, :, :, :], y_batch[None, i], steps, 1., 2.5 * (1. / steps), targeted=False, clip_min=0., clip_max=1.)
+            pgd_images = pgd_(model, x_batch[None, i, :, :, :], y_batch[None, i], steps, 0.1, 2.5 * (0.1 / steps), targeted=False, clip_min=0., clip_max=1.)
+            x_perturbed[:, i, :, :, :] = pgd_images
         print(x_perturbed)
         flattened = x_perturbed.reshape(-1, *x_perturbed.size()[2:])
         labels = torch.tensor([])
@@ -99,7 +100,7 @@ def train_detector(model, device, train_loader):
 
         output, _ = model(flattened)
         pred = output.argmax(dim=1, keepdim=True)
-        plt.imshow(flattened[0, ...].permute(1, 2, 0).cpu(), cmap='gray')
+        plt.imshow(flattened[-1, ...].permute(1, 2, 0).cpu(), cmap='gray')
         plt.show()
         print(42)
 
@@ -113,7 +114,7 @@ def test(model, device, test_loader):
     with torch.no_grad():
         for data, target in test_loader:
             data, target = data.to(device), target.to(device)
-            output = model(data)
+            output, _ = model(data)
             test_loss += F.nll_loss(output, target, reduction='sum').item()  # sum up batch loss
             pred = output.argmax(dim=1, keepdim=True)  # get the index of the max log-probability
             correct += pred.eq(target.view_as(pred)).sum().item()
@@ -133,7 +134,7 @@ def main():
     parser.add_argument('--test-batch-size', type=int, default=1000, metavar='N',
                         help='input batch size for testing (default: 1000)')
     parser.add_argument('--epochs', type=int, default=5, metavar='N',
-                        help='number of epochs to train (default: 14)')
+                        help='number of epochs to train (default: 5)')
     parser.add_argument('--lr', type=float, default=1.0, metavar='LR',
                         help='learning rate (default: 1.0)')
     parser.add_argument('--gamma', type=float, default=0.7, metavar='M',
@@ -146,9 +147,9 @@ def main():
                         help='random seed (default: 1)')
     parser.add_argument('--log-interval', type=int, default=10, metavar='N',
                         help='how many batches to wait before logging training status')
-    parser.add_argument('--save-model', action='store_true', default=True,
+    parser.add_argument('--save-model', action='store_true', default=False,
                         help='For Saving the current Model')
-    parser.add_argument('--load-model', action='store_true', default=False,
+    parser.add_argument('--load-model', action='store_true', default=True,
                         help='For Loading the last Model')
     args = parser.parse_args()
     use_cuda = not args.no_cuda and torch.cuda.is_available()
@@ -168,7 +169,7 @@ def main():
 
     transform=transforms.Compose([
         transforms.ToTensor(),
-        transforms.Normalize((0.1307,), (0.3081,))
+        # transforms.Normalize((0.1307,), (0.3081,))
         ])
     dataset1 = datasets.MNIST('../data', train=True, download=True,
                        transform=transform)
@@ -177,7 +178,7 @@ def main():
     train_loader = torch.utils.data.DataLoader(dataset1,**train_kwargs)
     test_loader = torch.utils.data.DataLoader(dataset2, **test_kwargs)
 
-    model = Net().to(device)
+    model = ClassifierNet().to(device)
     optimizer = optim.Adadelta(model.parameters("classifier"), lr=args.lr)
 
     if args.load_model:

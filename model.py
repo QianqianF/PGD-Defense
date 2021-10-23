@@ -16,6 +16,7 @@ class ClassifierNet(nn.Module):
     def forward(self, x):
         activations = [] # conv1, conv2, linear1, linear2
 
+        x = (x - 0.1307) / 0.3081
         x = self.conv1(x)
         conv1 = F.relu(x) # n, 32, 
         activations.append(conv1)
