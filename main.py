@@ -95,6 +95,8 @@ def train_detector(model, device, train_loader):
         labels = torch.cat(list)
 
 
+
+
 def test(model, device, test_loader):
     model.eval()
     test_loss = 0
