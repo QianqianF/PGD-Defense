@@ -111,6 +111,12 @@ def train_detector(model, device, train_loader):
         for i in range(len(x_batch)):
             x_perturbed[:, i, :, :, :] = pgd_(model, x_batch[None, i, :, :, :], y_batch[None, i], steps, 0.1, 2.5 * (0.1 / steps), targeted=False, clip_min=0., clip_max=1.)
         print(x_perturbed)
+        flattened = x_perturbed.reshape(-1, *x_perturbed.size()[2:])
+        labels = torch.tensor([])
+        list = []
+        for i in range(steps + 1):
+            list.append(torch.ones(x_batch.shape[0]) * i)
+        labels = torch.cat(list)
 
 
 def test(model, device, test_loader):
