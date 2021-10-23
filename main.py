@@ -88,6 +88,7 @@ def pgd_(model_, x, target, k, eps, eps_step, targeted=True, clip_min=None, clip
     if (clip_min is not None) or (clip_max is not None):
         x.clamp_(min=clip_min, max=clip_max)
 
+    xs = [x.clone().detach()]
     for i in range(k):
         # FGSM step
         # We don't clamp here (arguments clip_min=None, clip_max=None)
@@ -96,10 +97,22 @@ def pgd_(model_, x, target, k, eps, eps_step, targeted=True, clip_min=None, clip
         # Projection Step
         x = torch.max(x_min, x)
         x = torch.min(x_max, x)
+        xs.append(x.clone().detach())
     # if desired clip the output back to the image domain
+    xs = torch.stack(xs)
     if (clip_min is not None) or (clip_max is not None):
-        x.clamp_(min=clip_min, max=clip_max)
-    return x
+        xs.clamp_(min=clip_min, max=clip_max)
+    return xs[:, 0, :, :, :]
+
+
+def train_detector(model, device, train_loader):
+    for batch_idx, (x_batch, y_batch) in enumerate(train_loader):
+        x_batch, y_batch = x_batch.to(device), y_batch.to(device)
+        steps = 7
+        x_perturbed = torch.zeros(steps + 1, *x_batch.size())
+        for i in range(len(x_batch)):
+            x_perturbed[:, i, :, :, :] = pgd_(model, x_batch[None, i, :, :, :], y_batch[None, i], steps, 0.1, 2.5 * (0.1 / steps), targeted=False, clip_min=0., clip_max=1.)
+        print(x_perturbed)
 
 
 def test(model, device, test_loader):
@@ -128,7 +141,7 @@ def main():
                         help='input batch size for training (default: 64)')
     parser.add_argument('--test-batch-size', type=int, default=1000, metavar='N',
                         help='input batch size for testing (default: 1000)')
-    parser.add_argument('--epochs', type=int, default=14, metavar='N',
+    parser.add_argument('--epochs', type=int, default=5, metavar='N',
                         help='number of epochs to train (default: 14)')
     parser.add_argument('--lr', type=float, default=1.0, metavar='LR',
                         help='learning rate (default: 1.0)')
@@ -144,6 +157,8 @@ def main():
                         help='how many batches to wait before logging training status')
     parser.add_argument('--save-model', action='store_true', default=False,
                         help='For Saving the current Model')
+    parser.add_argument('--load-model', action='store_true', default=True,
+                        help='For Loading the last Model')
     args = parser.parse_args()
     use_cuda = not args.no_cuda and torch.cuda.is_available()
 
@@ -174,14 +189,18 @@ def main():
     model = ClassifierNet().to(device)
     optimizer = optim.Adadelta(model.parameters(), lr=args.lr)
 
-    scheduler = StepLR(optimizer, step_size=1, gamma=args.gamma)
-    for epoch in range(1, args.epochs + 1):
-        train_classifier(args, model, device, train_loader, optimizer, epoch)
-        test(model, device, test_loader)
-        scheduler.step()
+    if args.load_model:
+        model.load_state_dict(torch.load("mnist_cnn.pt"))
+    else:
+        scheduler = StepLR(optimizer, step_size=1, gamma=args.gamma)
+        for epoch in range(1, args.epochs + 1):
+            train_classifier(args, model, device, train_loader, optimizer, epoch)
+            test(model, device, test_loader)
+            scheduler.step()
+        if args.save_model:
+            torch.save(model.state_dict(), "mnist_cnn.pt")
 
-    if args.save_model:
-        torch.save(model.state_dict(), "mnist_cnn.pt")
+    train_detector(model, device, train_loader)
 
 
 if __name__ == '__main__':
