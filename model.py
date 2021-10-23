@@ -86,8 +86,14 @@ class Net(nn.Module):
 
     def forward(self, x):
         c_output, activations = self.classifier.forward()
-        d_output = self.detector.forward()
+        d_output = self.detector.forward(activations)
+        return c_output, d_output
 
-    
-
+    def parameters(self, which="all"):
+        if which=="detector":
+            return self.detector.parameters()
+        elif which=="classifier":
+            return self.classifier.parameters()
+        else:
+            return self.parameters()
 
