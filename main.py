@@ -6,6 +6,7 @@ import torch.nn.functional as F
 import torch.optim as optim
 from torchvision import datasets, transforms
 from torch.optim.lr_scheduler import StepLR
+import matplotlib.pyplot as plt
 
 from model import ClassifierNet
 
@@ -61,7 +62,7 @@ def fgsm_(model_, x, target, eps, targeted=True, clip_min=None, clip_max=None):
     input_.requires_grad_()
 
     # run the model and obtain the loss
-    logits = model_(input_)
+    logits, _ = model_(input_)
     target = torch.cuda.LongTensor([target])
     model_.zero_grad()
     loss = nn.CrossEntropyLoss()(logits, target)
@@ -80,6 +81,8 @@ def fgsm_(model_, x, target, eps, targeted=True, clip_min=None, clip_max=None):
 
 
 def pgd_(model_, x, target, k, eps, eps_step, targeted=True, clip_min=None, clip_max=None):
+    x = x.clone().detach()
+
     x_min = x - eps
     x_max = x + eps
 
@@ -109,16 +112,22 @@ def train_detector(model, device, train_loader):
     for batch_idx, (x_batch, y_batch) in enumerate(train_loader):
         x_batch, y_batch = x_batch.to(device), y_batch.to(device)
         steps = 7
-        x_perturbed = torch.zeros(steps + 1, *x_batch.size())
+        x_perturbed = torch.zeros(steps + 1, *x_batch.size()).to(device)
         for i in range(len(x_batch)):
-            x_perturbed[:, i, :, :, :] = pgd_(model, x_batch[None, i, :, :, :], y_batch[None, i], steps, 0.1, 2.5 * (0.1 / steps), targeted=False, clip_min=0., clip_max=1.)
+            x_perturbed[:, i, :, :, :] = pgd_(model, x_batch[None, i, :, :, :], y_batch[None, i], steps, 1., 2.5 * (1. / steps), targeted=False, clip_min=0., clip_max=1.)
         print(x_perturbed)
         flattened = x_perturbed.reshape(-1, *x_perturbed.size()[2:])
         labels = torch.tensor([])
         list = []
         for i in range(steps + 1):
-            list.append(torch.ones(x_batch.shape[0]) * i)
+            list.append(torch.ones(x_batch.shape[0]).to(device) * i)
         labels = torch.cat(list)
+
+        output, _ = model(flattened)
+        pred = output.argmax(dim=1, keepdim=True)
+        plt.imshow(flattened[0, ...].permute(1, 2, 0).cpu(), cmap='gray')
+        plt.show()
+        print(42)
 
 
 def test(model, device, test_loader):
