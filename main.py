@@ -8,33 +8,7 @@ from torchvision import datasets, transforms
 from torch.optim.lr_scheduler import StepLR
 import matplotlib.pyplot as plt
 
-from model import ClassifierNet
-
-
-class Net(nn.Module):
-    def __init__(self):
-        super(Net, self).__init__()
-        self.conv1 = nn.Conv2d(1, 32, 3, 1)
-        self.conv2 = nn.Conv2d(32, 64, 3, 1)
-        # self.dropout1 = nn.Dropout(0.25)
-        # self.dropout2 = nn.Dropout(0.5)
-        self.fc1 = nn.Linear(9216, 128)
-        self.fc2 = nn.Linear(128, 10)
-
-    def forward(self, x):
-        x = self.conv1(x)
-        x = F.relu(x)
-        x = self.conv2(x)
-        x = F.relu(x)
-        x = F.max_pool2d(x, 2)
-        # x = self.dropout1(x)
-        x = torch.flatten(x, 1)
-        x = self.fc1(x)
-        x = F.relu(x)
-        # x = self.dropout2(x)
-        x = self.fc2(x)
-        output = F.log_softmax(x, dim=1)
-        return output
+from model import Net
 
 
 def train_classifier(args, model, device, train_loader, optimizer, epoch):
@@ -42,7 +16,7 @@ def train_classifier(args, model, device, train_loader, optimizer, epoch):
     for batch_idx, (data, target) in enumerate(train_loader):
         data, target = data.to(device), target.to(device)
         optimizer.zero_grad()
-        output = model(data)
+        output, _ = model(data)
         loss = F.nll_loss(output, target)
         loss.backward()
         optimizer.step()
@@ -130,6 +104,8 @@ def train_detector(model, device, train_loader):
         print(42)
 
 
+
+
 def test(model, device, test_loader):
     model.eval()
     test_loss = 0
@@ -170,9 +146,9 @@ def main():
                         help='random seed (default: 1)')
     parser.add_argument('--log-interval', type=int, default=10, metavar='N',
                         help='how many batches to wait before logging training status')
-    parser.add_argument('--save-model', action='store_true', default=False,
+    parser.add_argument('--save-model', action='store_true', default=True,
                         help='For Saving the current Model')
-    parser.add_argument('--load-model', action='store_true', default=True,
+    parser.add_argument('--load-model', action='store_true', default=False,
                         help='For Loading the last Model')
     args = parser.parse_args()
     use_cuda = not args.no_cuda and torch.cuda.is_available()
@@ -201,8 +177,8 @@ def main():
     train_loader = torch.utils.data.DataLoader(dataset1,**train_kwargs)
     test_loader = torch.utils.data.DataLoader(dataset2, **test_kwargs)
 
-    model = ClassifierNet().to(device)
-    optimizer = optim.Adadelta(model.parameters(), lr=args.lr)
+    model = Net().to(device)
+    optimizer = optim.Adadelta(model.parameters("classifier"), lr=args.lr)
 
     if args.load_model:
         model.load_state_dict(torch.load("mnist_cnn.pt"))

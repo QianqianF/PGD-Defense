@@ -45,8 +45,8 @@ class DetectorNet(nn.Module):
         self.conv1 = nn.Conv2d(32, 64, 3, 1)
         self.conv1l = nn.Linear(9216, 64)
 
-        self.conv2 = nn.Conv2d(64, 64, 3, 1)
-        self.conv2l = nn.Linear(9216, 64)
+        self.conv2 = nn.Conv2d(64, 32, 3, 1)
+        self.conv2l = nn.Linear(3200, 64)
 
         self.linear1 = nn.Linear(128, 64)
         self.linear2 = nn.Linear(10, 1)
@@ -58,12 +58,17 @@ class DetectorNet(nn.Module):
         conv1, conv2, linear1, linear2 = activations[0], activations[1], activations[2], activations[3]
         x = self.conv1(conv1)
         x = F.relu(x)
+        x = F.max_pool2d(x, 2)
+
         x = torch.flatten(x, 1)
         x = self.conv1l(x)
-        conv1_out = F.relu(x) # n, 64
+        conv1_out = F.relu(x)
 
         x = self.conv2(conv2)
-        conv2_out = F.relu(x) # 
+        x = F.relu(x)
+        x = torch.flatten(x, 1)
+        x = self.conv2l(x)
+        conv2_out = F.relu(x)
 
         x = self.linear1(linear1)
         linear1_out = F.relu(x)
@@ -85,9 +90,15 @@ class Net(nn.Module):
         self.detector = DetectorNet()
 
     def forward(self, x):
-        c_output, activations = self.classifier.forward()
-        d_output = self.detector.forward()
+        c_output, activations = self.classifier.forward(x)
+        d_output = self.detector.forward(activations)
+        return c_output, d_output
 
-    
-
+    def parameters(self, which="all"):
+        if which=="detector":
+            return self.detector.parameters()
+        elif which=="classifier":
+            return self.classifier.parameters()
+        else:
+            return self.parameters()
 
