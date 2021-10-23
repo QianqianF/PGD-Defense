@@ -7,6 +7,8 @@ import torch.optim as optim
 from torchvision import datasets, transforms
 from torch.optim.lr_scheduler import StepLR
 
+from model import ClassifierNet
+
 
 class Net(nn.Module):
     def __init__(self):
@@ -190,7 +192,7 @@ def main():
     train_loader = torch.utils.data.DataLoader(dataset1,**train_kwargs)
     test_loader = torch.utils.data.DataLoader(dataset2, **test_kwargs)
 
-    model = Net().to(device)
+    model = ClassifierNet().to(device)
     optimizer = optim.Adadelta(model.parameters(), lr=args.lr)
 
     if args.load_model:
