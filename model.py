@@ -95,9 +95,9 @@ class Net(nn.Module):
         return c_output, d_output
 
     def parameters(self, which="all"):
-        if which=="detector":
+        if which == "detector":
             return self.detector.parameters()
-        elif which=="classifier":
+        elif which == "classifier":
             return self.classifier.parameters()
         else:
             return self.parameters()
