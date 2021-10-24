@@ -101,5 +101,5 @@ class Net(nn.Module):
         elif which == "classifier":
             return self.classifier.parameters()
         else:
-            return self.parameters()
+            return super().parameters()
 

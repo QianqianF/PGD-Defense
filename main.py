@@ -28,7 +28,7 @@ def train_classifier(args, model, device, train_loader, optimizer, epoch):
                 break
 
 
-def fgsm_(model_, x, target, eps, targeted=True, clip_min=None, clip_max=None):
+def fgsm_(model_, device, x, target, eps, targeted=True, clip_min=None, clip_max=None):
     """Internal process for all FGSM and PGD attacks."""
     # create a copy of the input, remove all previous associations to the compute graph...
     input_ = x.clone().detach_()
@@ -37,7 +37,7 @@ def fgsm_(model_, x, target, eps, targeted=True, clip_min=None, clip_max=None):
 
     # run the model and obtain the loss
     logits, _ = model_(input_)
-    target = torch.cuda.LongTensor([target])
+    target = torch.LongTensor([target]).to(device)
     model_.zero_grad()
     loss = nn.CrossEntropyLoss()(logits, target)
     loss.backward()
@@ -54,7 +54,7 @@ def fgsm_(model_, x, target, eps, targeted=True, clip_min=None, clip_max=None):
     return out
 
 
-def pgd_(model_, x, target, k, eps, eps_step, targeted=True, clip_min=None, clip_max=None):
+def pgd_(model_, device, x, target, k, eps, eps_step, targeted=True, clip_min=None, clip_max=None):
     x = x.clone().detach()
 
     x_min = x - eps
@@ -70,7 +70,7 @@ def pgd_(model_, x, target, k, eps, eps_step, targeted=True, clip_min=None, clip
         # FGSM step
         # We don't clamp here (arguments clip_min=None, clip_max=None)
         # as we want to apply the attack as defined
-        x = fgsm_(model_, x, target, eps_step, targeted)
+        x = fgsm_(model_, device, x, target, eps_step, targeted)
         # Projection Step
         x = torch.max(x_min, x)
         x = torch.min(x_max, x)
@@ -88,7 +88,7 @@ def train_detector(model, device, train_loader):
         steps = 7
         x_perturbed = torch.zeros(steps + 1, *x_batch.size()).to(device)
         for i in range(len(x_batch)):
-            pgd_images = pgd_(model, x_batch[None, i, :, :, :], y_batch[None, i], steps, 0.1, 2.5 * (0.1 / steps), targeted=False, clip_min=0., clip_max=1.)
+            pgd_images = pgd_(model, device, x_batch[None, i, :, :, :], y_batch[None, i], steps, 0.1, 2.5 * (0.1 / steps), targeted=False, clip_min=0., clip_max=1.)
             x_perturbed[:, i, :, :, :] = pgd_images
         print(x_perturbed)
         flattened = x_perturbed.reshape(-1, *x_perturbed.size()[2:])
@@ -176,7 +176,7 @@ def main():
     train_loader = torch.utils.data.DataLoader(dataset1,**train_kwargs)
     test_loader = torch.utils.data.DataLoader(dataset2, **test_kwargs)
 
-    model = ClassifierNet().to(device)
+    model = Net().to(device)
     optimizer = optim.Adadelta(model.parameters("classifier"), lr=args.lr)
 
     if args.load_model:
