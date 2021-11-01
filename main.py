@@ -5,7 +5,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 import torch.optim as optim
 from torchvision import datasets, transforms
-from torch.optim.lr_scheduler import StepLR
+from torch.optim.lr_scheduler import StepLR, ReduceLROnPlateau
 import matplotlib.pyplot as plt
 
 from model import Net, ClassifierNet
@@ -82,15 +82,16 @@ def pgd_(model_, device, x, target, k, eps, eps_step, targeted=True, clip_min=No
     return xs[:, 0, :, :, :]
 
 
-def train_detector(model, device, train_loader):
+def train_detector(model, device, train_loader, optimizer, epoch, args):
+    model.train()
     for batch_idx, (x_batch, y_batch) in enumerate(train_loader):
         x_batch, y_batch = x_batch.to(device), y_batch.to(device)
-        steps = 7
+        steps = 1
         x_perturbed = torch.zeros(steps + 1, *x_batch.size()).to(device)
         for i in range(len(x_batch)):
-            pgd_images = pgd_(model, device, x_batch[None, i, :, :, :], y_batch[None, i], steps, 0.1, 2.5 * (0.1 / steps), targeted=False, clip_min=0., clip_max=1.)
+            pgd_images = pgd_(model, device, x_batch[None, i, :, :, :], y_batch[None, i], steps, 0.1, (0.1 / steps), targeted=False, clip_min=0., clip_max=1.)
             x_perturbed[:, i, :, :, :] = pgd_images
-        print(x_perturbed)
+        # print(x_perturbed)
         flattened = x_perturbed.reshape(-1, *x_perturbed.size()[2:])
         labels = torch.tensor([])
         list = []
@@ -98,11 +99,25 @@ def train_detector(model, device, train_loader):
             list.append(torch.ones(x_batch.shape[0]).to(device) * i)
         labels = torch.cat(list)
 
-        output, _ = model(flattened)
-        pred = output.argmax(dim=1, keepdim=True)
-        plt.imshow(flattened[-1, ...].permute(1, 2, 0).cpu(), cmap='gray')
-        plt.show()
-        print(42)
+        # output, _ = model(flattened)
+        # pred = output.argmax(dim=1, keepdim=True)
+        # plt.imshow(flattened[-1, ...].permute(1, 2, 0).cpu(), cmap='gray')
+        # plt.show()
+        # print(42)
+
+        perm = torch.randperm(len(labels))
+        data, target = flattened[perm, ...], labels[perm]
+        optimizer.zero_grad()
+        _, output = model(data)
+        loss = nn.MSELoss()(output, target)
+        loss.backward()
+        optimizer.step()
+        if batch_idx % args.log_interval == 0:
+            print('Detector Train Epoch: {} [{}/{} ({:.0f}%)]\tLoss: {:.6f}'.format(
+                epoch, batch_idx * len(data), len(train_loader.dataset) * (steps+1),
+                       100. * batch_idx / len(train_loader), loss.item()))
+            if args.dry_run:
+                break
 
 def save_ad_examples(model, device, train_loader):
 
@@ -213,21 +228,26 @@ def main():
     test_loader = torch.utils.data.DataLoader(dataset2, **test_kwargs)
 
     model = Net().to(device)
-    optimizer = optim.Adadelta(model.parameters("classifier"), lr=args.lr)
+    optimizer_classifier = optim.Adadelta(model.parameters("classifier"), lr=args.lr)
+    optimizer_detector = optim.Adadelta(model.parameters("detector"), lr=0.1)
 
     if args.load_model:
         model.load_state_dict(torch.load("mnist_cnn.pt"))
     else:
-        scheduler = StepLR(optimizer, step_size=1, gamma=args.gamma)
+        scheduler = StepLR(optimizer_classifier, step_size=1, gamma=args.gamma)
         for epoch in range(1, args.epochs + 1):
-            train_classifier(args, model, device, train_loader, optimizer, epoch)
+            train_classifier(args, model, device, train_loader, optimizer_classifier, epoch)
             test(model, device, test_loader)
             scheduler.step()
         if args.save_model:
             torch.save(model.state_dict(), "mnist_cnn.pt")
 
-    save_ad_examples(model, device, train_loader)
-    # train_detector(model, device, train_loader)
+
+    # save_ad_examples(model, device, train_loader)
+
+    scheduler = ReduceLROnPlateau(optimizer_detector, patience=2)
+    for epoch in range(1, args.epochs + 1):
+        train_detector(model, device, train_loader, optimizer_detector, epoch, args)
 
 
 if __name__ == '__main__':
