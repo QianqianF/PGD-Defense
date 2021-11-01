@@ -175,12 +175,72 @@ def test(model, device, test_loader):
         100. * correct / len(test_loader.dataset)))
 
 
+def test_pgd_perturbed(model, device, test_loader):
+    model.eval()
+    test_loss = 0
+    correct = 0
+    adversarial_th_sum = 0.
+    benevolent_pgd_th_sum = 0.
+    clean_th_sum = 0.
+    # with torch.no_grad():
+    for batch_idx, (data, target) in enumerate(test_loader):
+        data, target = data.to(device), target.to(device)
+        steps = 7
+        x_perturbed = torch.zeros(data.shape).to(device)
+        for i in range(len(data)):
+            pgd_images = pgd_(model, device, data[None, i, :, :, :], target[None, i], steps, 0.1,
+                              2.5 * (0.1 / steps), targeted=False, clip_min=0., clip_max=1.)
+            x_perturbed[i, :, :, :] = pgd_images[-1, ...]
+            x_perturbed_randomized = x_perturbed + (torch.rand((10, *x_perturbed.shape), device=device) + 1.) / 2.
+            x_perturbed_randomized2 = torch.flatten(x_perturbed_randomized, start_dim=0, end_dim=1)
+            x_perturbed_randomized2_target = target.repeat(10)
+
+        for i in range(len(data)):
+            clean_randomized = data + (torch.rand((10, *data.shape), device=device) + 1.) / 2.
+            clean_randomized2 = torch.flatten(clean_randomized, start_dim=0, end_dim=1)
+            clean_randomized2_target = target.repeat(10)
+
+        output_clean, _ = model(clean_randomized2)
+        output_pgd_only, _ = model(x_perturbed)
+        output, _ = model(x_perturbed_randomized2)
+        test_loss += F.nll_loss(output, x_perturbed_randomized2_target, reduction='sum').item()  # sum up batch loss
+        pred_pgd_only = output_pgd_only.argmax(dim=1, keepdim=True)
+        pred = output.argmax(dim=1, keepdim=True)  # get the index of the max log-probability
+        individual_accuracies = torch.true_divide(torch.sum(pred.eq(x_perturbed_randomized2_target.view_as(pred)).reshape(10, -1), dim=0), 10.)
+        pred_clean = output_clean.argmax(dim=1, keepdim=True)
+        individual_accuracies_clean = torch.true_divide(
+            torch.sum(pred.eq(clean_randomized2_target.view_as(pred_clean)).reshape(10, -1), dim=0), 10.)
+        was_adversarial = torch.logical_not(pred_pgd_only.eq(target.view_as(pred_pgd_only)).reshape(-1))
+        # print(was_adversarial)
+        # print(individual_accuracies)
+        print('adversarial PGD:', individual_accuracies[was_adversarial])
+        print('benevolent PGD:', individual_accuracies[torch.logical_not(was_adversarial)])
+        print('clean randomized:', individual_accuracies_clean)
+
+        adversarial_th_sum += torch.true_divide(torch.sum(individual_accuracies[was_adversarial] > 0.5), len(individual_accuracies[was_adversarial])).cpu().item()
+        benevolent_pgd_th_sum += torch.true_divide(torch.sum(individual_accuracies[torch.logical_not(was_adversarial)] > 0.5), len(individual_accuracies[torch.logical_not(was_adversarial)])).cpu().item()
+        clean_th_sum += torch.true_divide(torch.sum(individual_accuracies_clean > 0.5), len(individual_accuracies_clean)).cpu().item()
+        print('agg. adversarial PGD over th.:', adversarial_th_sum / (batch_idx + 1))
+        print('agg. benevolent PDG over th.:', benevolent_pgd_th_sum / (batch_idx + 1))
+        print('agg. clean randomized over th.:', clean_th_sum / (batch_idx + 1))
+
+        new_correct = pred.eq(x_perturbed_randomized2_target.view_as(pred)).sum().item()
+        correct += new_correct
+        # print(new_correct / len(x_perturbed_randomized2_target))
+
+    test_loss /= len(test_loader.dataset)
+
+    print('\nTest set: Average loss: {:.4f}, Accuracy: {}/{} ({:.0f}%)\n'.format(
+        test_loss, correct, len(test_loader.dataset),
+        100. * correct / len(test_loader.dataset)))
+
+
 def main():
     # Training settings
     parser = argparse.ArgumentParser(description='PyTorch MNIST Example')
     parser.add_argument('--batch-size', type=int, default=64, metavar='N',
                         help='input batch size for training (default: 64)')
-    parser.add_argument('--test-batch-size', type=int, default=1000, metavar='N',
+    parser.add_argument('--test-batch-size', type=int, default=32, metavar='N',
                         help='input batch size for testing (default: 1000)')
     parser.add_argument('--epochs', type=int, default=5, metavar='N',
                         help='number of epochs to train (default: 5)')
@@ -245,9 +305,11 @@ def main():
 
     # save_ad_examples(model, device, train_loader)
 
-    scheduler = ReduceLROnPlateau(optimizer_detector, patience=2)
-    for epoch in range(1, args.epochs + 1):
-        train_detector(model, device, train_loader, optimizer_detector, epoch, args)
+    test_pgd_perturbed(model, device, test_loader)
+
+    # scheduler = ReduceLROnPlateau(optimizer_detector, patience=2)
+    # for epoch in range(1, args.epochs + 1):
+    #     train_detector(model, device, train_loader, optimizer_detector, epoch, args)
 
 
 if __name__ == '__main__':
