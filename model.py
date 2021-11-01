@@ -43,56 +43,66 @@ class ClassifierNet(nn.Module):
 class DetectorNet(nn.Module):
     def __init__(self):
         super(DetectorNet, self).__init__()
-        self.conv0 = nn.Conv2d(1, 32, 3, 1)
-        self.conv0l = nn.Linear(5408, 64)
+        self.simple_linear0 = nn.Linear(28 * 28, 100)
+        self.simple_linear1 = nn.Linear(100, 1)
 
-        self.conv1 = nn.Conv2d(32, 64, 3, 1)
-        self.conv1l = nn.Linear(9216, 64)
-
-        self.conv2 = nn.Conv2d(64, 32, 3, 1)
-        self.conv2l = nn.Linear(3200, 64)
-
-        self.linear1 = nn.Linear(128, 64)
-        self.linear2 = nn.Linear(10, 1)
-
-        self.fc1 = nn.Linear(257, 10)
-        self.fc2 = nn.Linear(10, 1)
+        # self.conv0 = nn.Conv2d(1, 32, 3, 1)
+        # self.conv0l = nn.Linear(5408, 64)
+        #
+        # self.conv1 = nn.Conv2d(32, 64, 3, 1)
+        # self.conv1l = nn.Linear(9216, 64)
+        #
+        # self.conv2 = nn.Conv2d(64, 32, 3, 1)
+        # self.conv2l = nn.Linear(3200, 64)
+        #
+        # self.linear1 = nn.Linear(128, 64)
+        # self.linear2 = nn.Linear(10, 1)
+        #
+        # self.fc1 = nn.Linear(257, 10)
+        # # self.fc1 = nn.Linear(64, 10)
+        # self.fc2 = nn.Linear(10, 1)
 
     def forward(self, activations):
         input, conv1, conv2, linear1, linear2 = activations[0], activations[1], activations[2], activations[3], activations[4]
-
-        x = self.conv0(input)
+        x = torch.flatten(input, 1)
+        x = self.simple_linear0(x)
         x = F.relu(x)
-        x = F.max_pool2d(x, 2)
+        x = self.simple_linear1(x)
+        output = x
 
-        x = torch.flatten(x, 1)
-        x = self.conv0l(x)
-        conv0_out = F.relu(x)
-
-        x = self.conv1(conv1)
-        x = F.relu(x)
-        x = F.max_pool2d(x, 2)
-
-        x = torch.flatten(x, 1)
-        x = self.conv1l(x)
-        conv1_out = F.relu(x)
-
-        x = self.conv2(conv2)
-        x = F.relu(x)
-        x = torch.flatten(x, 1)
-        x = self.conv2l(x)
-        conv2_out = F.relu(x)
-
-        x = self.linear1(linear1)
-        linear1_out = F.relu(x)
-
-        x = self.linear2(linear2)
-        linear2_out = F.relu(x)
-
-        x = torch.cat((conv0_out, conv1_out, conv2_out, linear1_out, linear2_out), 1)
-        x = self.fc1(x)
-        x = F.relu(x)
-        output = self.fc2(x)
+        # x = self.conv0(input)
+        # x = F.relu(x)
+        # x = F.max_pool2d(x, 2)
+        #
+        # x = torch.flatten(x, 1)
+        # x = self.conv0l(x)
+        # conv0_out = F.relu(x)
+        #
+        # x = self.conv1(conv1)
+        # x = F.relu(x)
+        # x = F.max_pool2d(x, 2)
+        #
+        # x = torch.flatten(x, 1)
+        # x = self.conv1l(x)
+        # conv1_out = F.relu(x)
+        #
+        # x = self.conv2(conv2)
+        # x = F.relu(x)
+        # x = torch.flatten(x, 1)
+        # x = self.conv2l(x)
+        # conv2_out = F.relu(x)
+        #
+        # x = self.linear1(linear1)
+        # linear1_out = F.relu(x)
+        #
+        # x = self.linear2(linear2)
+        # linear2_out = F.relu(x)
+        #
+        # # x = torch.cat((conv0_out, conv1_out, conv2_out, linear1_out, linear2_out), 1)
+        # x = conv0_out
+        # x = self.fc1(x)
+        # x = F.relu(x)
+        # output = self.fc2(x)
 
         return output
 

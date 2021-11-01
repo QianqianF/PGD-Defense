@@ -86,7 +86,7 @@ def train_detector(model, device, train_loader, optimizer, epoch, args):
     model.train()
     for batch_idx, (x_batch, y_batch) in enumerate(train_loader):
         x_batch, y_batch = x_batch.to(device), y_batch.to(device)
-        steps = 1
+        steps = 7
         x_perturbed = torch.zeros(steps + 1, *x_batch.size()).to(device)
         for i in range(len(x_batch)):
             pgd_images = pgd_(model, device, x_batch[None, i, :, :, :], y_batch[None, i], steps, 0.1, (0.1 / steps), targeted=False, clip_min=0., clip_max=1.)
@@ -109,7 +109,7 @@ def train_detector(model, device, train_loader, optimizer, epoch, args):
         data, target = flattened[perm, ...], labels[perm]
         optimizer.zero_grad()
         _, output = model(data)
-        loss = nn.MSELoss()(output, target)
+        loss = nn.MSELoss()(output[:, 0], target)
         loss.backward()
         optimizer.step()
         if batch_idx % args.log_interval == 0:
