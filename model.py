@@ -14,7 +14,7 @@ class ClassifierNet(nn.Module):
         self.fc2 = nn.Linear(128, 10)
 
     def forward(self, x):
-        activations = [] # conv1, conv2, linear1, linear2
+        activations = [x] # conv1, conv2, linear1, linear2
 
         x = (x - 0.1307) / 0.3081
         x = self.conv1(x)
@@ -43,6 +43,9 @@ class ClassifierNet(nn.Module):
 class DetectorNet(nn.Module):
     def __init__(self):
         super(DetectorNet, self).__init__()
+        self.conv0 = nn.Conv2d(1, 32, 3, 1)
+        self.conv0l = nn.Linear(5408, 64)
+
         self.conv1 = nn.Conv2d(32, 64, 3, 1)
         self.conv1l = nn.Linear(9216, 64)
 
@@ -52,11 +55,20 @@ class DetectorNet(nn.Module):
         self.linear1 = nn.Linear(128, 64)
         self.linear2 = nn.Linear(10, 1)
 
-        self.fc1 = nn.Linear(193, 10)
+        self.fc1 = nn.Linear(257, 10)
         self.fc2 = nn.Linear(10, 1)
 
     def forward(self, activations):
-        conv1, conv2, linear1, linear2 = activations[0], activations[1], activations[2], activations[3]
+        input, conv1, conv2, linear1, linear2 = activations[0], activations[1], activations[2], activations[3], activations[4]
+
+        x = self.conv0(input)
+        x = F.relu(x)
+        x = F.max_pool2d(x, 2)
+
+        x = torch.flatten(x, 1)
+        x = self.conv0l(x)
+        conv0_out = F.relu(x)
+
         x = self.conv1(conv1)
         x = F.relu(x)
         x = F.max_pool2d(x, 2)
@@ -77,7 +89,7 @@ class DetectorNet(nn.Module):
         x = self.linear2(linear2)
         linear2_out = F.relu(x)
 
-        x = torch.cat((conv1_out, conv2_out, linear1_out, linear2_out), 1)
+        x = torch.cat((conv0_out, conv1_out, conv2_out, linear1_out, linear2_out), 1)
         x = self.fc1(x)
         x = F.relu(x)
         output = self.fc2(x)
