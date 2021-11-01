@@ -104,6 +104,42 @@ def train_detector(model, device, train_loader):
         plt.show()
         print(42)
 
+def save_ad_examples(model, device, train_loader):
+
+    train_size = len(train_loader.dataset)
+    steps = 7
+    num_channel = 1
+    im_size = 28
+
+    ad_examples = torch.zeros([train_size * (steps + 1), num_channel, im_size, im_size])
+    ad_labels = torch.zeros(train_size * (steps + 1))
+
+    for batch_idx, (x_batch, y_batch) in enumerate(train_loader):
+
+        x_batch, y_batch = x_batch.to(device), y_batch.to(device)
+        x_perturbed = torch.zeros(steps + 1, *x_batch.size()).to(device)
+        for i in range(len(x_batch)):
+            pgd_images = pgd_(model, device, x_batch[None, i, :, :, :], y_batch[None, i], steps, 0.1, 2.5 * (0.1 / steps), targeted=False, clip_min=0., clip_max=1.)
+            x_perturbed[:, i, :, :, :] = pgd_images
+
+        flattened = x_perturbed.reshape(-1, *x_perturbed.size()[2:])
+        labels = torch.tensor([])
+        list = []
+        for i in range(steps + 1):
+            list.append(torch.ones(x_batch.shape[0]).to(device) * i)
+        labels = torch.cat(list)
+
+        ad_examples[batch_idx * (train_loader.batch_size) * (steps+1):(batch_idx+1) * (train_loader.batch_size) * (steps+1)] = flattened
+        ad_labels[batch_idx * (train_loader.batch_size) * (steps+1):(batch_idx+1) * (train_loader.batch_size) * (steps+1)] = labels
+
+        print('Process PGD: [{}/{}]'.format(
+                batch_idx * len(x_batch), train_size))
+
+    torch.save(ad_examples, 'ad_examples.pt')
+    torch.save(ad_labels, 'ad_labels.pt')
+
+
+
 
 def test(model, device, test_loader):
     model.eval()
@@ -190,7 +226,8 @@ def main():
         if args.save_model:
             torch.save(model.state_dict(), "mnist_cnn.pt")
 
-    train_detector(model, device, train_loader)
+    save_ad_examples(model, device, train_loader)
+    # train_detector(model, device, train_loader)
 
 
 if __name__ == '__main__':
