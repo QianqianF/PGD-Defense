@@ -7,6 +7,7 @@ import torch.optim as optim
 from torchvision import datasets, transforms
 from torch.optim.lr_scheduler import StepLR, ReduceLROnPlateau
 import matplotlib.pyplot as plt
+import numpy as np
 
 from model import Net, ClassifierNet
 
@@ -15,6 +16,8 @@ def train_classifier(args, model, device, train_loader, optimizer, epoch):
     model.train()
     for batch_idx, (data, target) in enumerate(train_loader):
         data, target = data.to(device), target.to(device)
+        if args.augment:
+            data += (torch.rand(data.shape, device=device) * 2. - 1.) * 0.2
         optimizer.zero_grad()
         output, _ = model(data)
         loss = F.nll_loss(output, target)
@@ -54,16 +57,17 @@ def fgsm_(model_, device, x, target, eps, targeted=True, clip_min=None, clip_max
     return out
 
 
-def pgd_(model_, device, x, target, k, eps, eps_step, targeted=True, clip_min=None, clip_max=None):
+def pgd_(model_, device, x, target, k, eps, eps_step, targeted=True, clip_min=None, clip_max=None, random_start=False):
     x = x.clone().detach()
 
     x_min = x - eps
     x_max = x + eps
 
     # Randomize the starting point x.
-    # x = x + eps * (2 * torch.rand_like(x) - 1)
-    # if (clip_min is not None) or (clip_max is not None):
-    #     x.clamp_(min=clip_min, max=clip_max)
+    if random_start:
+        x = x + eps * (2 * torch.rand_like(x) - 1)
+        if (clip_min is not None) or (clip_max is not None):
+            x.clamp_(min=clip_min, max=clip_max)
 
     xs = [x.clone().detach()]
     for i in range(k):
@@ -156,13 +160,15 @@ def save_ad_examples(model, device, train_loader):
 
 
 
-def test(model, device, test_loader):
+def test(model, device, test_loader, args):
     model.eval()
     test_loss = 0
     correct = 0
     with torch.no_grad():
         for data, target in test_loader:
             data, target = data.to(device), target.to(device)
+            if args.augment:
+                data += (torch.rand(data.shape, device=device) * 2. - 1.) * 0.2
             output, _ = model(data)
             test_loss += F.nll_loss(output, target, reduction='sum').item()  # sum up batch loss
             pred = output.argmax(dim=1, keepdim=True)  # get the index of the max log-probability
@@ -181,22 +187,26 @@ def test_pgd_perturbed(model, device, test_loader):
     correct = 0
     adversarial_th_sum = 0.
     benevolent_pgd_th_sum = 0.
+    pgd_th_sum = 0.
+    adversarial_clean_th_sum = 0.
+    benevolent_clean_th_sum = 0.
     clean_th_sum = 0.
     # with torch.no_grad():
     for batch_idx, (data, target) in enumerate(test_loader):
         data, target = data.to(device), target.to(device)
         steps = 7
+        max_perturbation = 0.1
         x_perturbed = torch.zeros(data.shape).to(device)
         for i in range(len(data)):
-            pgd_images = pgd_(model, device, data[None, i, :, :, :], target[None, i], steps, 0.1,
-                              2.5 * (0.1 / steps), targeted=False, clip_min=0., clip_max=1.)
+            pgd_images = pgd_(model, device, data[None, i, :, :, :], target[None, i], steps, max_perturbation,
+                              2.5 * (max_perturbation / steps), targeted=False, clip_min=0., clip_max=1., random_start=True)
             x_perturbed[i, :, :, :] = pgd_images[-1, ...]
-            x_perturbed_randomized = x_perturbed + (torch.rand((10, *x_perturbed.shape), device=device) + 1.) / 2.
+            x_perturbed_randomized = x_perturbed + (torch.rand((10, *x_perturbed.shape), device=device) * 2. - 1.) * max_perturbation
             x_perturbed_randomized2 = torch.flatten(x_perturbed_randomized, start_dim=0, end_dim=1)
             x_perturbed_randomized2_target = target.repeat(10)
 
         for i in range(len(data)):
-            clean_randomized = data + (torch.rand((10, *data.shape), device=device) + 1.) / 2.
+            clean_randomized = data + (torch.rand((10, *data.shape), device=device) * 2. - 1.) * max_perturbation
             clean_randomized2 = torch.flatten(clean_randomized, start_dim=0, end_dim=1)
             clean_randomized2_target = target.repeat(10)
 
@@ -209,7 +219,7 @@ def test_pgd_perturbed(model, device, test_loader):
         individual_accuracies = torch.true_divide(torch.sum(pred.eq(x_perturbed_randomized2_target.view_as(pred)).reshape(10, -1), dim=0), 10.)
         pred_clean = output_clean.argmax(dim=1, keepdim=True)
         individual_accuracies_clean = torch.true_divide(
-            torch.sum(pred.eq(clean_randomized2_target.view_as(pred_clean)).reshape(10, -1), dim=0), 10.)
+            torch.sum(pred_clean.eq(clean_randomized2_target.view_as(pred_clean)).reshape(10, -1), dim=0), 10.)
         was_adversarial = torch.logical_not(pred_pgd_only.eq(target.view_as(pred_pgd_only)).reshape(-1))
         # print(was_adversarial)
         # print(individual_accuracies)
@@ -217,11 +227,23 @@ def test_pgd_perturbed(model, device, test_loader):
         print('benevolent PGD:', individual_accuracies[torch.logical_not(was_adversarial)])
         print('clean randomized:', individual_accuracies_clean)
 
-        adversarial_th_sum += torch.true_divide(torch.sum(individual_accuracies[was_adversarial] > 0.5), len(individual_accuracies[was_adversarial])).cpu().item()
+        print('accuracies equal?', torch.equal(individual_accuracies, individual_accuracies_clean))
+
+        if torch.sum(was_adversarial) > 0:
+            adversarial_th_sum += torch.true_divide(torch.sum(individual_accuracies[was_adversarial] > 0.5), len(individual_accuracies[was_adversarial])).cpu().item()
+            adversarial_clean_th_sum += torch.true_divide(torch.sum(individual_accuracies_clean[was_adversarial] > 0.5), len(individual_accuracies_clean[was_adversarial])).cpu().item()
         benevolent_pgd_th_sum += torch.true_divide(torch.sum(individual_accuracies[torch.logical_not(was_adversarial)] > 0.5), len(individual_accuracies[torch.logical_not(was_adversarial)])).cpu().item()
+        benevolent_clean_th_sum += torch.true_divide(
+            torch.sum(individual_accuracies_clean[torch.logical_not(was_adversarial)] > 0.5),
+            len(individual_accuracies_clean[torch.logical_not(was_adversarial)])).cpu().item()
+        pgd_th_sum += torch.true_divide(torch.sum(individual_accuracies > 0.5),
+                                          len(individual_accuracies)).cpu().item()
         clean_th_sum += torch.true_divide(torch.sum(individual_accuracies_clean > 0.5), len(individual_accuracies_clean)).cpu().item()
         print('agg. adversarial PGD over th.:', adversarial_th_sum / (batch_idx + 1))
         print('agg. benevolent PDG over th.:', benevolent_pgd_th_sum / (batch_idx + 1))
+        print('agg. PDG over th.:', pgd_th_sum / (batch_idx + 1))
+        print('agg. adversarial clean over th.:', adversarial_clean_th_sum / (batch_idx + 1))
+        print('agg. benevolent clean over th.:', benevolent_clean_th_sum / (batch_idx + 1))
         print('agg. clean randomized over th.:', clean_th_sum / (batch_idx + 1))
 
         new_correct = pred.eq(x_perturbed_randomized2_target.view_as(pred)).sum().item()
@@ -242,7 +264,7 @@ def main():
                         help='input batch size for training (default: 64)')
     parser.add_argument('--test-batch-size', type=int, default=32, metavar='N',
                         help='input batch size for testing (default: 1000)')
-    parser.add_argument('--epochs', type=int, default=5, metavar='N',
+    parser.add_argument('--epochs', type=int, default=10, metavar='N',
                         help='number of epochs to train (default: 5)')
     parser.add_argument('--lr', type=float, default=1.0, metavar='LR',
                         help='learning rate (default: 1.0)')
@@ -260,6 +282,8 @@ def main():
                         help='For Saving the current Model')
     parser.add_argument('--load-model', action='store_true', default=True,
                         help='For Loading the last Model')
+    parser.add_argument('--augment', action='store_true', default=False,
+                        help='Whether data should be perturbed when training the classifier (default: False)')
     args = parser.parse_args()
     use_cuda = not args.no_cuda and torch.cuda.is_available()
 
@@ -292,12 +316,12 @@ def main():
     optimizer_detector = optim.Adadelta(model.parameters("detector"), lr=0.1)
 
     if args.load_model:
-        model.load_state_dict(torch.load("mnist_cnn.pt"))
+        model.load_state_dict(torch.load("mnist_cnn_std.pt"))
     else:
         scheduler = StepLR(optimizer_classifier, step_size=1, gamma=args.gamma)
         for epoch in range(1, args.epochs + 1):
             train_classifier(args, model, device, train_loader, optimizer_classifier, epoch)
-            test(model, device, test_loader)
+            test(model, device, test_loader, args)
             scheduler.step()
         if args.save_model:
             torch.save(model.state_dict(), "mnist_cnn.pt")
