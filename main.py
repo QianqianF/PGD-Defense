@@ -10,6 +10,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 
 from model import Net, ClassifierNet
+from pgd import pgd_
 
 
 def train_classifier(args, model, device, train_loader, optimizer, epoch):
@@ -31,86 +32,54 @@ def train_classifier(args, model, device, train_loader, optimizer, epoch):
                 break
 
 
-def fgsm_(model_, device, x, target, eps, targeted=True, clip_min=None, clip_max=None):
-    """Internal process for all FGSM and PGD attacks."""
-    # create a copy of the input, remove all previous associations to the compute graph...
-    input_ = x.clone().detach_()
-    # ... and make sure we are differentiating toward that variable
-    input_.requires_grad_()
+def sample_perturbed_data(x_batch, y_batch, model, pgd_samples, max_pgd_delta, uniform_samples, max_uniform_delta, device):
+    y_batch_pgd = torch.tensor(0., device=device)
+    if pgd_samples > 0:
+        steps = pgd_samples
+        x_perturbed = torch.zeros(steps + 1, *x_batch.size()).to(device)
+        for i in range(len(x_batch)):
+            pgd_images = pgd_(model, device, x_batch[None, i, :, :, :], y_batch[None, i], steps, max_pgd_delta, (max_pgd_delta / steps),
+                              targeted=False, clip_min=0., clip_max=1.)
+            x_perturbed[:, i, :, :, :] = pgd_images
+        x_batch_pgd = x_perturbed.reshape(-1, *x_perturbed.size()[2:])
+        list = []
+        for i in range(steps + 1):
+            list.append(torch.ones(x_batch.shape[0]).to(device) * i)
+        y_batch_pgd = torch.true_divide(torch.cat(list), pgd_samples)
+        x_batch = x_batch_pgd
 
-    # run the model and obtain the loss
-    logits, _ = model_(input_)
-    target = torch.LongTensor([target]).to(device)
-    model_.zero_grad()
-    loss = nn.CrossEntropyLoss()(logits, target)
-    loss.backward()
+    y_batch_u = torch.tensor(0., device=device)
+    if uniform_samples > 0:
+        ceils = torch.arange(0., max_uniform_delta + torch.finfo(torch.float32).eps, max_uniform_delta / uniform_samples).to(device)
+        x_batch_u_temp = x_batch + (torch.rand((uniform_samples + 1, *x_batch.shape), device=device) * 2. - 1.) * ceils[:, None, None, None, None]
+        x_batch_u = torch.flatten(x_batch_u_temp, start_dim=0, end_dim=1)
+        y_batch_u = torch.repeat_interleave(torch.true_divide(ceils, max_uniform_delta), len(x_batch))
+        if y_batch_pgd.size() != torch.Size([]):
+            y_batch_pgd = y_batch_pgd.repeat(uniform_samples + 1)
+        x_batch = x_batch_u
 
-    # perfrom either targeted or untargeted attack
-    if targeted:
-        out = input_ - eps * input_.grad.sign()
-    else:
-        out = input_ + eps * input_.grad.sign()
+    distances = torch.sqrt(y_batch_pgd**2 + y_batch_u**2)
 
-    # if desired clip the ouput back to the image domain
-    if (clip_min is not None) or (clip_max is not None):
-        out.clamp_(min=clip_min, max=clip_max)
-    return out
-
-
-def pgd_(model_, device, x, target, k, eps, eps_step, targeted=True, clip_min=None, clip_max=None, random_start=False):
-    x = x.clone().detach()
-
-    x_min = x - eps
-    x_max = x + eps
-
-    # Randomize the starting point x.
-    if random_start:
-        x = x + eps * (2 * torch.rand_like(x) - 1)
-        if (clip_min is not None) or (clip_max is not None):
-            x.clamp_(min=clip_min, max=clip_max)
-
-    xs = [x.clone().detach()]
-    for i in range(k):
-        # FGSM step
-        # We don't clamp here (arguments clip_min=None, clip_max=None)
-        # as we want to apply the attack as defined
-        x = fgsm_(model_, device, x, target, eps_step, targeted)
-        # Projection Step
-        x = torch.max(x_min, x)
-        x = torch.min(x_max, x)
-        xs.append(x.clone().detach())
-    # if desired clip the output back to the image domain
-    xs = torch.stack(xs)
-    if (clip_min is not None) or (clip_max is not None):
-        xs.clamp_(min=clip_min, max=clip_max)
-    return xs[:, 0, :, :, :]
+    return x_batch, distances
 
 
 def train_detector(model, device, train_loader, optimizer, epoch, args):
     model.train()
     for batch_idx, (x_batch, y_batch) in enumerate(train_loader):
         x_batch, y_batch = x_batch.to(device), y_batch.to(device)
-        steps = 7
-        x_perturbed = torch.zeros(steps + 1, *x_batch.size()).to(device)
-        for i in range(len(x_batch)):
-            pgd_images = pgd_(model, device, x_batch[None, i, :, :, :], y_batch[None, i], steps, 0.1, (0.1 / steps), targeted=False, clip_min=0., clip_max=1.)
-            x_perturbed[:, i, :, :, :] = pgd_images
-        # print(x_perturbed)
-        flattened = x_perturbed.reshape(-1, *x_perturbed.size()[2:])
-        labels = torch.tensor([])
-        list = []
-        for i in range(steps + 1):
-            list.append(torch.ones(x_batch.shape[0]).to(device) * i)
-        labels = torch.cat(list)
+        x_batch, y_batch = sample_perturbed_data(x_batch, y_batch, model, 7, 0.1, 7, 0.1, device)
+        x_batch = x_batch.detach()
+        y_batch = y_batch.detach()
 
-        # output, _ = model(flattened)
+        # output, _ = model(x_batch)
         # pred = output.argmax(dim=1, keepdim=True)
-        # plt.imshow(flattened[-1, ...].permute(1, 2, 0).cpu(), cmap='gray')
+        # plt.imshow(x_batch[-1, ...].permute(1, 2, 0).cpu(), cmap='gray')
         # plt.show()
         # print(42)
 
-        perm = torch.randperm(len(labels))
-        data, target = flattened[perm, ...], labels[perm]
+        perm = torch.randperm(len(y_batch))
+        x_batch_perm, y_batch_perm = x_batch[perm, ...], y_batch[perm]
+        data, target = x_batch_perm, y_batch_perm
         optimizer.zero_grad()
         _, output = model(data)
         loss = nn.MSELoss()(output[:, 0], target)
@@ -118,7 +87,7 @@ def train_detector(model, device, train_loader, optimizer, epoch, args):
         optimizer.step()
         if batch_idx % args.log_interval == 0:
             print('Detector Train Epoch: {} [{}/{} ({:.0f}%)]\tLoss: {:.6f}'.format(
-                epoch, batch_idx * len(data), len(train_loader.dataset) * (steps+1),
+                epoch, batch_idx * len(data), len(train_loader.dataset) * 64,
                        100. * batch_idx / len(train_loader), loss.item()))
             if args.dry_run:
                 break
@@ -260,9 +229,9 @@ def test_pgd_perturbed(model, device, test_loader):
 def main():
     # Training settings
     parser = argparse.ArgumentParser(description='PyTorch MNIST Example')
-    parser.add_argument('--batch-size', type=int, default=64, metavar='N',
+    parser.add_argument('--batch-size', type=int, default=4, metavar='N',
                         help='input batch size for training (default: 64)')
-    parser.add_argument('--test-batch-size', type=int, default=32, metavar='N',
+    parser.add_argument('--test-batch-size', type=int, default=4, metavar='N',
                         help='input batch size for testing (default: 1000)')
     parser.add_argument('--epochs', type=int, default=10, metavar='N',
                         help='number of epochs to train (default: 5)')
@@ -329,11 +298,11 @@ def main():
 
     # save_ad_examples(model, device, train_loader)
 
-    test_pgd_perturbed(model, device, test_loader)
+    # test_pgd_perturbed(model, device, test_loader)
 
-    # scheduler = ReduceLROnPlateau(optimizer_detector, patience=2)
-    # for epoch in range(1, args.epochs + 1):
-    #     train_detector(model, device, train_loader, optimizer_detector, epoch, args)
+    scheduler = ReduceLROnPlateau(optimizer_detector, patience=2)
+    for epoch in range(1, args.epochs + 1):
+        train_detector(model, device, train_loader, optimizer_detector, epoch, args)
 
 
 if __name__ == '__main__':
