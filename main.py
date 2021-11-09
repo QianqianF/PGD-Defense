@@ -31,8 +31,9 @@ def train_classifier(args, model, device, train_loader, optimizer, epoch):
             if args.dry_run:
                 break
 
-
-def sample_perturbed_data(x_batch, y_batch, model, pgd_samples, max_pgd_delta, uniform_samples, max_uniform_delta, device):
+# returns (# of pgd_samples) pgd perturbed images with max_pgd_delta
+# x_batch_pgd: ((pgd_samples + 1) * x_batch.size, color_channel, image_width, image_height)
+def apply_pgd(x_batch, y_batch, model, pgd_samples, max_pgd_delta, device):
     y_batch_pgd = torch.tensor(0., device=device)
     if pgd_samples > 0:
         steps = pgd_samples
@@ -46,21 +47,40 @@ def sample_perturbed_data(x_batch, y_batch, model, pgd_samples, max_pgd_delta, u
         for i in range(steps + 1):
             list.append(torch.ones(x_batch.shape[0]).to(device) * i)
         y_batch_pgd = torch.true_divide(torch.cat(list), pgd_samples)
-        x_batch = x_batch_pgd
+        
+        return x_batch_pgd, y_batch_pgd
 
-    y_batch_u = torch.tensor(0., device=device)
-    if uniform_samples > 0:
-        ceils = torch.arange(0., max_uniform_delta + torch.finfo(torch.float32).eps, max_uniform_delta / uniform_samples).to(device)
-        x_batch_u_temp = x_batch + (torch.rand((uniform_samples + 1, *x_batch.shape), device=device) * 2. - 1.) * ceils[:, None, None, None, None]
-        x_batch_u = torch.flatten(x_batch_u_temp, start_dim=0, end_dim=1)
-        y_batch_u = torch.repeat_interleave(torch.true_divide(ceils, max_uniform_delta), len(x_batch))
-        if y_batch_pgd.size() != torch.Size([]):
-            y_batch_pgd = y_batch_pgd.repeat(uniform_samples + 1)
-        x_batch = x_batch_u
+# max_perturbation: max_uniform_delta if noise="uniform"; max_sigma if noise="gaussian"
+def apply_noise(x_batch, model, noise_samples, max_perturbation, device, noise="gaussian"):
 
-    distances = torch.sqrt(y_batch_pgd**2 + y_batch_u**2)
+    y_batch_noise = torch.tensor(0., device=device)
+    if noise_samples > 0:
+        ceils = torch.arange(0., max_perturbation + torch.finfo(torch.float32).eps, max_perturbation / noise_samples).to(device)
 
-    return x_batch, distances
+        if noise == "gaussian":
+            x_batch_noise_temp = x_batch + torch.randn((noise_samples + 1, *x_batch.shape), device=device) * ceils[:, None, None, None, None]
+        elif noise == "uniform":
+            x_batch_noise_temp = x_batch + (torch.rand((noise_samples + 1, *x_batch.shape), device=device) * 2. - 1.) * ceils[:, None, None, None, None]
+
+        x_batch_noise = torch.flatten(x_batch_noise_temp, start_dim=0, end_dim=1)
+        y_batch_noise = torch.repeat_interleave(torch.true_divide(ceils, max_perturbation), len(x_batch))
+
+    return x_batch_noise, y_batch_noise
+
+
+# apply noise to both clean and pgd perturbed images
+# max_perturbation: max_uniform_delta if noise="uniform"; max_sigma if noise="gaussian"
+def sample_perturbed_data(x_batch, y_batch, model, pgd_samples, max_pgd_delta, noise_samples, max_perturbation, device, noise="gaussian"):
+    
+    x_batch_pgd, y_batch_pgd = apply_pgd(x_batch, y_batch, model, pgd_samples, max_pgd_delta, device)
+
+    x_batch_noise, y_batch_noise = apply_noise(x_batch_pgd, model, noise_samples, max_perturbation, device, noise)
+
+    if y_batch_pgd.size() != torch.Size([]):
+        y_batch_pgd = y_batch_pgd.repeat(noise_samples + 1)
+
+    distances = torch.sqrt(y_batch_pgd**2 + y_batch_noise**2)
+    return x_batch_noise, distances
 
 
 def train_detector(model, device, train_loader, optimizer, epoch, args):
@@ -285,7 +305,7 @@ def main():
     optimizer_detector = optim.Adadelta(model.parameters("detector"), lr=0.1)
 
     if args.load_model:
-        model.load_state_dict(torch.load("mnist_cnn_std.pt"))
+        model.load_state_dict(torch.load("mnist_cnn_std.pt", map_location=device))
     else:
         scheduler = StepLR(optimizer_classifier, step_size=1, gamma=args.gamma)
         for epoch in range(1, args.epochs + 1):
