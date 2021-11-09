@@ -32,7 +32,7 @@ def train_classifier(args, model, device, train_loader, optimizer, epoch):
                 break
 
 
-def sample_perturbed_data(x_batch, y_batch, model, pgd_samples, max_pgd_delta, uniform_samples, max_uniform_delta, device):
+def sample_perturbed_data(x_batch, y_batch, model, pgd_samples, max_pgd_delta, uniform_samples, max_uniform_delta, device, test_mode=False):
     y_batch_pgd = torch.tensor(0., device=device)
     if pgd_samples > 0:
         steps = pgd_samples
@@ -41,12 +41,21 @@ def sample_perturbed_data(x_batch, y_batch, model, pgd_samples, max_pgd_delta, u
             pgd_images = pgd_(model, device, x_batch[None, i, :, :, :], y_batch[None, i], steps, max_pgd_delta, (max_pgd_delta / steps),
                               targeted=False, clip_min=0., clip_max=1.)
             x_perturbed[:, i, :, :, :] = pgd_images
-        x_batch_pgd = x_perturbed.reshape(-1, *x_perturbed.size()[2:])
-        list = []
-        for i in range(steps + 1):
-            list.append(torch.ones(x_batch.shape[0]).to(device) * i)
-        y_batch_pgd = torch.true_divide(torch.cat(list), pgd_samples)
-        x_batch = x_batch_pgd
+        if test_mode:
+            x_batch = x_perturbed[-1, ...]
+        else:
+            x_batch_pgd = x_perturbed.reshape(-1, *x_perturbed.size()[2:])
+            list = []
+            for i in range(steps + 1):
+                list.append(torch.ones(x_batch.shape[0]).to(device) * i)
+            y_batch_pgd = torch.true_divide(torch.cat(list), pgd_samples)
+            x_batch = x_batch_pgd
+
+    if test_mode:
+        x_batch_u_temp = x_batch + (torch.rand((uniform_samples + 1, *x_batch.shape), device=device) * 2. - 1.)
+        x_batch = torch.flatten(x_batch_u_temp, start_dim=0, end_dim=1)
+        y_batch = torch.repeat_interleave(y_batch, len(x_batch))
+        return x_batch, y_batch
 
     y_batch_u = torch.tensor(0., device=device)
     if uniform_samples > 0:
@@ -91,6 +100,8 @@ def train_detector(model, device, train_loader, optimizer, epoch, args):
                        100. * batch_idx / len(train_loader), loss.item()))
             if args.dry_run:
                 break
+        if batch_idx / len(train_loader) > 0.1:
+            break
 
 def save_ad_examples(model, device, train_loader):
 
@@ -179,6 +190,11 @@ def test_pgd_perturbed(model, device, test_loader):
             clean_randomized2 = torch.flatten(clean_randomized, start_dim=0, end_dim=1)
             clean_randomized2_target = target.repeat(10)
 
+        for i in range(len(clean_randomized2)):
+            clean_randomized2[i, ...] = pgd_(model, device, clean_randomized2[None, i, ...], None, 10, max_perturbation, 2.5 * (max_perturbation / steps), clip_min=0., clip_max=1., random_start=False, regression=True)[-1, ...]
+        for i in range(len(x_perturbed_randomized2)):
+            x_perturbed_randomized2[i, ...] = pgd_(model, device, x_perturbed_randomized2[None, i, ...], None, 10, max_perturbation, 2.5 * (max_perturbation / steps), clip_min=0., clip_max=1., random_start=False, regression=True)[-1, ...]
+
         output_clean, _ = model(clean_randomized2)
         output_pgd_only, _ = model(x_perturbed)
         output, _ = model(x_perturbed_randomized2)
@@ -253,6 +269,8 @@ def main():
                         help='For Loading the last Model')
     parser.add_argument('--augment', action='store_true', default=False,
                         help='Whether data should be perturbed when training the classifier (default: False)')
+    parser.add_argument('--retrain-detector', action='store_true', default=True,
+                        help='Retrain the detector model')
     args = parser.parse_args()
     use_cuda = not args.no_cuda and torch.cuda.is_available()
 
@@ -298,12 +316,17 @@ def main():
 
     # save_ad_examples(model, device, train_loader)
 
-    # test_pgd_perturbed(model, device, test_loader)
 
     scheduler = ReduceLROnPlateau(optimizer_detector, patience=2)
-    for epoch in range(1, args.epochs + 1):
-        train_detector(model, device, train_loader, optimizer_detector, epoch, args)
+    # for epoch in range(1, args.epochs + 1):
+    #     train_detector(model, device, train_loader, optimizer_detector, epoch, args)
+    if args.retrain_detector:
+        train_detector(model, device, train_loader, optimizer_detector, 0, args)
+        torch.save(model.state_dict(), "mnist_cnn_detector.pt")
+    else:
+        model.load_state_dict(torch.load("mnist_cnn_detector.pt"))
 
+    test_pgd_perturbed(model, device, test_loader)
 
 if __name__ == '__main__':
     main()
