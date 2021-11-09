@@ -34,7 +34,7 @@ def train_classifier(args, model, device, train_loader, optimizer, epoch):
 
 # returns (# of pgd_samples) pgd perturbed images with max_pgd_delta
 # x_batch_pgd: ((pgd_samples + 1) * x_batch.size, color_channel, image_width, image_height)
-def apply_pgd(x_batch, y_batch, model, pgd_samples, max_pgd_delta, device, test_mode=False):
+def apply_pgd(x_batch, y_batch, model, pgd_samples, max_pgd_delta, device, test_mode=False, noise='uniform'):
 
     y_batch_pgd = torch.tensor(0., device=device)
     if pgd_samples > 0:
@@ -42,7 +42,7 @@ def apply_pgd(x_batch, y_batch, model, pgd_samples, max_pgd_delta, device, test_
         x_perturbed = torch.zeros(steps + 1, *x_batch.size()).to(device)
         for i in range(len(x_batch)):
             pgd_images = pgd_(model, device, x_batch[None, i, :, :, :], y_batch[None, i], steps, max_pgd_delta, (max_pgd_delta / steps),
-                              targeted=False, clip_min=0., clip_max=1., random_start=test_mode)
+                              targeted=False, clip_min=0., clip_max=1., random_start=test_mode, norm=('linf' if noise == 'uniform' else 'l2'))
             x_perturbed[:, i, :, :, :] = pgd_images
 
         if test_mode:
@@ -82,9 +82,9 @@ def apply_noise(x_batch, model, noise_samples, max_perturbation, device, noise="
 
 # apply noise to both clean and pgd perturbed images
 # max_perturbation: max_uniform_delta if noise="uniform"; max_sigma if noise="gaussian"
-def sample_perturbed_data(x_batch, y_batch, model, pgd_samples, max_pgd_delta, noise_samples, max_perturbation, device, noise="gaussian", test_mode=False):
+def sample_perturbed_data(x_batch, y_batch, model, pgd_samples, max_pgd_delta, noise_samples, max_perturbation, device, noise='uniform', test_mode=False):
 
-    x_batch_pgd, y_batch_pgd = apply_pgd(x_batch, y_batch, model, pgd_samples, max_pgd_delta, device, test_mode)
+    x_batch_pgd, y_batch_pgd = apply_pgd(x_batch, y_batch, model, pgd_samples, max_pgd_delta, device, test_mode, noise)
 
     x_batch_noise, y_batch_noise = apply_noise(x_batch_pgd, model, noise_samples, max_perturbation, device, noise, test_mode)
 
@@ -307,11 +307,11 @@ def main():
                         help='For Loading the last Model')
     parser.add_argument('--augment', action='store_true', default=False,
                         help='Whether data should be perturbed when training the classifier (default: False)')
-    parser.add_argument('--retrain-detector', action='store_true', default=False,
+    parser.add_argument('--retrain-detector', action='store_true', default=True,
                         help='Retrain the detector model')
-    parser.add_argument('--noise', default='uniform')
-    parser.add_argument('--max-pgd', type=float, default=0.1)
-    parser.add_argument('--max-noise', type=float, default=0.1)
+    parser.add_argument('--noise', default='gaussian')
+    parser.add_argument('--max-pgd', type=float, default=1.)
+    parser.add_argument('--max-noise', type=float, default=1.)
 
     args = parser.parse_args()
     use_cuda = not args.no_cuda and torch.cuda.is_available()
@@ -364,9 +364,9 @@ def main():
     #     train_detector(model, device, train_loader, optimizer_detector, epoch, args)
     if args.retrain_detector:
         train_detector(model, device, train_loader, optimizer_detector, 0, args)
-        torch.save(model.state_dict(), "mnist_cnn_detector.pt")
+        torch.save(model.state_dict(), "mnist_cnn_detector_l2.pt")
     else:
-        model.load_state_dict(torch.load("mnist_cnn_detector.pt"))
+        model.load_state_dict(torch.load("mnist_cnn_detector_l2.pt"))
 
     # test_pgd_perturbed(model, device, test_loader)
     test_renaturing(model, device, test_loader, args, apply_pgd=True)
