@@ -331,7 +331,7 @@ def main():
             test(model, device, test_loader, args)
             scheduler.step()
         if args.save_model:
-            torch.save(model.state_dict(), "mnist_cnn.pt")
+            torch.save(model.state_dict(), "mnist_cnn_std.pt")
 
 
     # save_ad_examples(model, device, train_loader)
