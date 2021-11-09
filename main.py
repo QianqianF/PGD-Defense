@@ -53,8 +53,9 @@ def apply_pgd(x_batch, y_batch, model, pgd_samples, max_pgd_delta, device, test_
             for i in range(steps + 1):
                 list.append(torch.ones(x_batch.shape[0]).to(device) * i)
             y_batch_pgd = torch.true_divide(torch.cat(list), pgd_samples)
-        
+
         return x_batch_pgd, y_batch_pgd
+    return x_batch, torch.tensor(0.)
 
 # max_perturbation: max_uniform_delta if noise="uniform"; max_sigma if noise="gaussian"
 def apply_noise(x_batch, model, noise_samples, max_perturbation, device, noise="gaussian", test_mode=False):
@@ -62,7 +63,7 @@ def apply_noise(x_batch, model, noise_samples, max_perturbation, device, noise="
     y_batch_noise = torch.tensor(0., device=device)
     if noise_samples > 0:
         if test_mode:
-            ceils = torch.tensor(max_perturbation).to(device)
+            ceils = torch.tensor([max_perturbation]).to(device)
         else:
             ceils = torch.arange(0., max_perturbation + torch.finfo(torch.float32).eps, max_perturbation / noise_samples).to(device)
 
@@ -70,6 +71,8 @@ def apply_noise(x_batch, model, noise_samples, max_perturbation, device, noise="
             x_batch_noise_temp = x_batch + torch.randn((noise_samples + 1, *x_batch.shape), device=device) * ceils[:, None, None, None, None]
         elif noise == "uniform":
             x_batch_noise_temp = x_batch + (torch.rand((noise_samples + 1, *x_batch.shape), device=device) * 2. - 1.) * ceils[:, None, None, None, None]
+        else:
+            raise NotImplementedError()
 
         x_batch_noise = torch.flatten(x_batch_noise_temp, start_dim=0, end_dim=1)
         y_batch_noise = torch.repeat_interleave(torch.true_divide(ceils, max_perturbation), len(x_batch))
@@ -96,7 +99,7 @@ def train_detector(model, device, train_loader, optimizer, epoch, args):
     model.train()
     for batch_idx, (x_batch, y_batch) in enumerate(train_loader):
         x_batch, y_batch = x_batch.to(device), y_batch.to(device)
-        x_batch, y_batch = sample_perturbed_data(x_batch, y_batch, model, 7, 0.1, 7, 0.1, device)
+        x_batch, y_batch = sample_perturbed_data(x_batch, y_batch, model, 7, args.max_pgd, 7, args.max_noise, device, args.noise)
         x_batch = x_batch.detach()
         y_batch = y_batch.detach()
 
@@ -180,6 +183,21 @@ def test(model, device, test_loader, args):
         test_loss, correct, len(test_loader.dataset),
         100. * correct / len(test_loader.dataset)))
 
+
+def test_renaturing(model, device, test_loader, args, apply_pgd=True):
+    model.eval()
+    correct = 0
+    for idx, (x_batch, y_batch) in enumerate(test_loader):
+        x_batch, y_batch = x_batch.to(device), y_batch.to(device)
+        x_batch, _ = sample_perturbed_data(x_batch, y_batch, model, 7 if apply_pgd else 0, args.max_pgd, 7, args.max_noise, device, args.noise, test_mode=True)
+        output, _ = model(x_batch)
+        pred = output.argmax(dim=1, keepdim=True).reshape(-1, len(y_batch))
+        for i in range(len(y_batch)):
+            frequencies = torch.bincount(pred[:, i], minlength=10)
+            values, indices = torch.topk(frequencies, 2)
+            if values[0] == y_batch[i] and indices[0] > indices[1]:
+                correct += 1
+        print('agg. correct:', correct / ((idx + 1) * len(y_batch)))
 
 def test_pgd_perturbed(model, device, test_loader):
     model.eval()
@@ -291,6 +309,10 @@ def main():
                         help='Whether data should be perturbed when training the classifier (default: False)')
     parser.add_argument('--retrain-detector', action='store_true', default=True,
                         help='Retrain the detector model')
+    parser.add_argument('--noise', default='uniform')
+    parser.add_argument('--max-pgd', type=float, default=0.1)
+    parser.add_argument('--max-noise', type=float, default=0.1)
+
     args = parser.parse_args()
     use_cuda = not args.no_cuda and torch.cuda.is_available()
 
@@ -346,7 +368,8 @@ def main():
     else:
         model.load_state_dict(torch.load("mnist_cnn_detector.pt"))
 
-    test_pgd_perturbed(model, device, test_loader)
+    # test_pgd_perturbed(model, device, test_loader)
+    test_renaturing(model, device, test_loader, args, apply_pgd=True)
 
 if __name__ == '__main__':
     main()
