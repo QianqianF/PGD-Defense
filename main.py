@@ -34,7 +34,7 @@ def train_classifier(args, model, device, train_loader, optimizer, epoch):
 
 # returns (# of pgd_samples) pgd perturbed images with max_pgd_delta
 # x_batch_pgd: ((pgd_samples + 1) * x_batch.size, color_channel, image_width, image_height)
-def apply_pgd(x_batch, y_batch, model, pgd_samples, max_pgd_delta, device):
+def apply_pgd(x_batch, y_batch, model, pgd_samples, max_pgd_delta, device, test_mode=False):
 
     y_batch_pgd = torch.tensor(0., device=device)
     if pgd_samples > 0:
@@ -44,20 +44,27 @@ def apply_pgd(x_batch, y_batch, model, pgd_samples, max_pgd_delta, device):
             pgd_images = pgd_(model, device, x_batch[None, i, :, :, :], y_batch[None, i], steps, max_pgd_delta, (max_pgd_delta / steps),
                               targeted=False, clip_min=0., clip_max=1.)
             x_perturbed[:, i, :, :, :] = pgd_images
-        x_batch_pgd = x_perturbed.reshape(-1, *x_perturbed.size()[2:])
-        list = []
-        for i in range(steps + 1):
-            list.append(torch.ones(x_batch.shape[0]).to(device) * i)
-        y_batch_pgd = torch.true_divide(torch.cat(list), pgd_samples)
+
+        if test_mode:
+            x_batch_pgd = x_perturbed[-1, ...]
+        else:
+            x_batch_pgd = x_perturbed.reshape(-1, *x_perturbed.size()[2:])
+            list = []
+            for i in range(steps + 1):
+                list.append(torch.ones(x_batch.shape[0]).to(device) * i)
+            y_batch_pgd = torch.true_divide(torch.cat(list), pgd_samples)
         
         return x_batch_pgd, y_batch_pgd
 
 # max_perturbation: max_uniform_delta if noise="uniform"; max_sigma if noise="gaussian"
-def apply_noise(x_batch, model, noise_samples, max_perturbation, device, noise="gaussian"):
+def apply_noise(x_batch, model, noise_samples, max_perturbation, device, noise="gaussian", test_mode=False):
 
     y_batch_noise = torch.tensor(0., device=device)
     if noise_samples > 0:
-        ceils = torch.arange(0., max_perturbation + torch.finfo(torch.float32).eps, max_perturbation / noise_samples).to(device)
+        if test_mode:
+            ceils = torch.tensor(max_perturbation).to(device)
+        else:
+            ceils = torch.arange(0., max_perturbation + torch.finfo(torch.float32).eps, max_perturbation / noise_samples).to(device)
 
         if noise == "gaussian":
             x_batch_noise_temp = x_batch + torch.randn((noise_samples + 1, *x_batch.shape), device=device) * ceils[:, None, None, None, None]
@@ -73,10 +80,10 @@ def apply_noise(x_batch, model, noise_samples, max_perturbation, device, noise="
 # apply noise to both clean and pgd perturbed images
 # max_perturbation: max_uniform_delta if noise="uniform"; max_sigma if noise="gaussian"
 def sample_perturbed_data(x_batch, y_batch, model, pgd_samples, max_pgd_delta, noise_samples, max_perturbation, device, noise="gaussian", test_mode=False):
-    
-    x_batch_pgd, y_batch_pgd = apply_pgd(x_batch, y_batch, model, pgd_samples, max_pgd_delta, device)
 
-    x_batch_noise, y_batch_noise = apply_noise(x_batch_pgd, model, noise_samples, max_perturbation, device, noise)
+    x_batch_pgd, y_batch_pgd = apply_pgd(x_batch, y_batch, model, pgd_samples, max_pgd_delta, device, test_mode)
+
+    x_batch_noise, y_batch_noise = apply_noise(x_batch_pgd, model, noise_samples, max_perturbation, device, noise, test_mode)
 
     if y_batch_pgd.size() != torch.Size([]):
         y_batch_pgd = y_batch_pgd.repeat(noise_samples + 1)
