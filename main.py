@@ -42,7 +42,7 @@ def apply_pgd(x_batch, y_batch, model, pgd_samples, max_pgd_delta, device, test_
         x_perturbed = torch.zeros(steps + 1, *x_batch.size()).to(device)
         for i in range(len(x_batch)):
             pgd_images = pgd_(model, device, x_batch[None, i, :, :, :], y_batch[None, i], steps, max_pgd_delta, (max_pgd_delta / steps),
-                              targeted=False, clip_min=0., clip_max=1.)
+                              targeted=False, clip_min=0., clip_max=1., random_start=test_mode)
             x_perturbed[:, i, :, :, :] = pgd_images
 
         if test_mode:
@@ -195,7 +195,7 @@ def test_renaturing(model, device, test_loader, args, apply_pgd=True):
         for i in range(len(y_batch)):
             frequencies = torch.bincount(pred[:, i], minlength=10)
             values, indices = torch.topk(frequencies, 2)
-            if values[0] == y_batch[i] and indices[0] > indices[1]:
+            if indices[0] == y_batch[i] and values[0] > values[1]:
                 correct += 1
         print('agg. correct:', correct / ((idx + 1) * len(y_batch)))
 
@@ -307,7 +307,7 @@ def main():
                         help='For Loading the last Model')
     parser.add_argument('--augment', action='store_true', default=False,
                         help='Whether data should be perturbed when training the classifier (default: False)')
-    parser.add_argument('--retrain-detector', action='store_true', default=True,
+    parser.add_argument('--retrain-detector', action='store_true', default=False,
                         help='Retrain the detector model')
     parser.add_argument('--noise', default='uniform')
     parser.add_argument('--max-pgd', type=float, default=0.1)
