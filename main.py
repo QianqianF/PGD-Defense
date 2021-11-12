@@ -8,10 +8,13 @@ from torchvision import datasets, transforms
 from torch.optim.lr_scheduler import StepLR, ReduceLROnPlateau
 import matplotlib.pyplot as plt
 import numpy as np
+from sklearn.metrics import r2_score
+from tensorboard import SummaryWriter
 
 from model import Net, ClassifierNet
 from pgd import pgd_
 
+writer = SummaryWriter()
 
 def train_classifier(args, model, device, train_loader, optimizer, epoch):
     model.train()
@@ -109,22 +112,60 @@ def train_detector(model, device, train_loader, optimizer, epoch, args):
         # plt.show()
         # print(42)
 
-        perm = torch.randperm(len(y_batch))
-        x_batch_perm, y_batch_perm = x_batch[perm, ...], y_batch[perm]
-        data, target = x_batch_perm, y_batch_perm
+        data, target = x_batch, y_batch
         optimizer.zero_grad()
         _, output = model(data)
         loss = nn.MSELoss()(output[:, 0], target)
         loss.backward()
         optimizer.step()
+
         if batch_idx % args.log_interval == 0:
             print('Detector Train Epoch: {} [{}/{} ({:.0f}%)]\tLoss: {:.6f}'.format(
                 epoch, batch_idx * len(data), len(train_loader.dataset) * 64,
                        100. * batch_idx / len(train_loader), loss.item()))
+            print('R-squared: ', r2_score(output[:, 0], target))
+
+            writer.add_scalar('Loss/MSE', loss)
+
             if args.dry_run:
                 break
         if batch_idx / len(train_loader) > 0.1:
             break
+
+def evaluate_detector_r2(model, train_loader, device, args):
+    for batch_idx, (x_batch, y_batch) in enumerate(train_loader):
+        x_batch, y_batch = x_batch.to(device), y_batch.to(device)
+        x_batch, y_batch = sample_perturbed_data(x_batch, y_batch, model, 7, args.max_pgd, 7, args.max_noise, device, args.noise)
+        x_batch = x_batch.detach()
+        y_batch = y_batch.detach()
+
+        perm = torch.randperm(len(y_batch))
+        x_batch_perm, y_batch_perm = x_batch[perm, ...], y_batch[perm]
+        data, target = x_batch_perm, y_batch_perm
+        _, output = model(data)
+        print('R-squared: ', r2_score(output[:, 0].detach().numpy(), target.detach().numpy()))
+
+def visualize_detector_output(model, train_loader, device, args):
+    for batch_idx, (x_batch, y_batch) in enumerate(train_loader):
+        x_batch, y_batch = sample_perturbed_data(x_batch, y_batch, model, 7, args.max_pgd, 7, args.max_noise, device, args.noise)
+        x_batch = x_batch.detach()
+        y_batch = y_batch.detach()
+
+        perm = torch.randperm(len(y_batch))
+        x_batch_perm, y_batch_perm = x_batch[perm, ...], y_batch[perm]
+        data, target = x_batch_perm, y_batch_perm
+
+        # print(data.shape)
+        _, output = model(data)
+
+        for i in range(14):
+            plt.imshow(data[i, ...].permute(1, 2, 0).cpu(), cmap='gray')
+            plt.title("predicted: {0}, true: {1}".format(output[i, 0].item(), target[i].item()))
+            plt.show()
+
+        break
+
+        
 
 def save_ad_examples(model, device, train_loader):
 
@@ -312,7 +353,7 @@ def main():
                         help='For Loading the last Model')
     parser.add_argument('--augment', action='store_true', default=False,
                         help='Whether data should be perturbed when training the classifier (default: False)')
-    parser.add_argument('--retrain-detector', action='store_true', default=False,
+    parser.add_argument('--retrain-detector', action='store_true', default=True,
                         help='Retrain the detector model')
     parser.add_argument('--noise', default='gaussian')
     parser.add_argument('--max-pgd', type=float, default=1.)
@@ -371,10 +412,13 @@ def main():
         train_detector(model, device, train_loader, optimizer_detector, 0, args)
         torch.save(model.state_dict(), "mnist_cnn_detector_l2.pt")
     else:
-        model.load_state_dict(torch.load("mnist_cnn_detector_l2.pt"))
+        model.load_state_dict(torch.load("mnist_cnn_detector_l2.pt", map_location=device))
 
     # test_pgd_perturbed(model, device, test_loader)
-    test_renaturing(model, device, test_loader, args, apply_pgd=True)
+
+    visualize_detector_output(model, train_loader, device, args)
+    
+    # test_renaturing(model, device, test_loader, args, apply_pgd=True)
 
 if __name__ == '__main__':
     main()
