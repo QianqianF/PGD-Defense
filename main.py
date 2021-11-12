@@ -190,6 +190,11 @@ def test_renaturing(model, device, test_loader, args, apply_pgd=True):
     for idx, (x_batch, y_batch) in enumerate(test_loader):
         x_batch, y_batch = x_batch.to(device), y_batch.to(device)
         x_batch, _ = sample_perturbed_data(x_batch, y_batch, model, 7 if apply_pgd else 0, args.max_pgd, 7, args.max_noise, device, args.noise, test_mode=True)
+        
+        for i in range(len(x_batch)):
+            x_batch[i, ...] = pgd_(model, device, x_batch[None, i, ...], None, 10, args.max_pgd, 2.5 * (args.max_pgd / 7), clip_min=0., clip_max=1.,
+            random_start=False, regression=True, norm=('linf' if args.noise == 'uniform' else 'l2'))[-1, ...]
+        
         output, _ = model(x_batch)
         pred = output.argmax(dim=1, keepdim=True).reshape(-1, len(y_batch))
         for i in range(len(y_batch)):
@@ -307,11 +312,11 @@ def main():
                         help='For Loading the last Model')
     parser.add_argument('--augment', action='store_true', default=False,
                         help='Whether data should be perturbed when training the classifier (default: False)')
-    parser.add_argument('--retrain-detector', action='store_true', default=True,
+    parser.add_argument('--retrain-detector', action='store_true', default=False,
                         help='Retrain the detector model')
     parser.add_argument('--noise', default='gaussian')
     parser.add_argument('--max-pgd', type=float, default=1.)
-    parser.add_argument('--max-noise', type=float, default=1.)
+    parser.add_argument('--max-noise', type=float, default=0.1)
 
     args = parser.parse_args()
     use_cuda = not args.no_cuda and torch.cuda.is_available()
