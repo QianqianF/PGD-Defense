@@ -49,6 +49,17 @@ class NormalizedVgg(nn.Module):
         x = self.classifier(x)
         return x
 
+    def sample_elbo_with_output(self, inputs, labels,
+                criterion, sample_nbr, complexity_cost_weight=1):
+        loss = 0.
+        outputs = 0.
+        for _ in range(sample_nbr):
+            output = self(inputs)
+            outputs += output
+            loss += criterion(output, labels) 
+            loss += self.nn_kl_divergence() * complexity_cost_weight
+        return loss / sample_nbr, outputs / sample_nbr
+
 
 def get_architecture(arch: str, dataset: str) -> torch.nn.Module:
     """ Return a neural network (with random weights)

@@ -316,13 +316,11 @@ def train(loader: DataLoader, model: torch.nn.Module, criterion, optimizer: Opti
 
 def train_evaluate_model(model, noisy_inputs, targets, criterion):
     if args.bbb:
-        loss = model.sample_elbo(inputs=noisy_inputs,
+        loss, outputs = model.sample_elbo_with_output(inputs=noisy_inputs,
                 labels=targets,
                 criterion=criterion,
                 sample_nbr=args.bbb_ws_train,
                 complexity_cost_weight=args.bbb_kl_posterior_prior_weight)
-        with torch.no_grad():
-            outputs = model(noisy_inputs)
     else:
         outputs = model(noisy_inputs)
         loss = criterion(outputs, targets)
