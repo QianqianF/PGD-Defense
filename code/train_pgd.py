@@ -9,7 +9,7 @@ import os
 import time
 
 
-from IPython import embed
+# from IPython import embed
 from architectures import ARCHITECTURES, get_architecture
 from attacks import Attacker, PGD_L2, DDN
 from datasets import get_dataset, DATASETS, get_num_classes,\
@@ -88,6 +88,11 @@ parser.add_argument('--random-start', default=True, type=bool)
 parser.add_argument('--init-norm-DDN', default=256.0, type=float)
 parser.add_argument('--gamma-DDN', default=0.05, type=float)
 
+# Bayesian Approaches
+parser.add_argument('--bbb', action='store_true',
+                    help='Use Bayes by Backprob VI.')
+parser.add_argument('--bbb-ws-train', default=1, type=int, help="BbB: Number of weight samples at training time")
+parser.add_argument('--bbb-kl-posterior-prior-weight', default=1/50000, type=float, help="BbB: weight factor for the KL divergence between posterior and prior ditributions")
 
 args = parser.parse_args()
 
@@ -251,8 +256,8 @@ def train(loader: DataLoader, model: torch.nn.Module, criterion, optimizer: Opti
                 noisy_inputs = inputs + noise
 
                 targets = targets.unsqueeze(1).repeat(1, args.num_noise_vec).reshape(-1,1).squeeze()
-                outputs = model(noisy_inputs)
-                loss = criterion(outputs, targets)
+                
+                outputs, loss = train_evaluate_model(model, noisy_inputs, targets, criterion)
 
                 acc1, acc5 = accuracy(outputs, targets, topk=(1, 5))
                 losses.update(loss.item(), noisy_inputs.size(0))
@@ -277,8 +282,7 @@ def train(loader: DataLoader, model: torch.nn.Module, criterion, optimizer: Opti
             targets = batch[1].cuda()
             assert len(targets) == len(noisy_inputs)
 
-            outputs = model(noisy_inputs)
-            loss = criterion(outputs, targets)
+            outputs, loss = train_evaluate_model(model, noisy_inputs, targets, criterion)
 
             # measure accuracy and record loss
             acc1, acc5 = accuracy(outputs, targets, topk=(1, 5))
@@ -308,6 +312,21 @@ def train(loader: DataLoader, model: torch.nn.Module, criterion, optimizer: Opti
                 data_time=data_time, loss=losses, top1=top1, top5=top5))
 
     return (losses.avg, top1.avg)
+
+
+def train_evaluate_model(model, noisy_inputs, targets, criterion):
+    if args.bbb:
+        loss = model.sample_elbo(inputs=noisy_inputs,
+                labels=targets,
+                criterion=criterion,
+                sample_nbr=args.bbb_ws_train,
+                complexity_cost_weight=args.bbb_kl_posterior_prior_weight)
+        with torch.no_grad():
+            outputs = model(noisy_inputs)
+    else:
+        outputs = model(noisy_inputs)
+        loss = criterion(outputs, targets)
+    return outputs, loss
 
 
 def test(loader: DataLoader, model: torch.nn.Module, criterion, noise_sd: float, attacker: Attacker=None):
