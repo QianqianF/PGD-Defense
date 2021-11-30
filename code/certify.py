@@ -5,6 +5,7 @@ import os
 from time import time
 
 from architectures import get_architecture
+from intermediate import Intermediate
 from core import Smooth
 from datasets import get_dataset, DATASETS, get_num_classes
 import torch
@@ -22,6 +23,7 @@ parser.add_argument("--split", choices=["train", "test"], default="test", help="
 parser.add_argument("--N0", type=int, default=100)
 parser.add_argument("--N", type=int, default=100000, help="number of samples to use")
 parser.add_argument("--alpha", type=float, default=0.001, help="failure probability")
+parser.add_argument('--use-intermediate', action='store_true', help="use intermediate PGD layer for certification")
 args = parser.parse_args()
 
 if __name__ == "__main__":
@@ -30,8 +32,11 @@ if __name__ == "__main__":
     base_classifier = get_architecture(checkpoint["arch"], args.dataset)
     base_classifier.load_state_dict(checkpoint['state_dict'])
 
-    # create the smooothed classifier g
-    smoothed_classifier = Smooth(base_classifier, get_num_classes(args.dataset), args.sigma)
+    # create the smooothed classifier
+    if args.use_intermediate:
+        smoothed_classifier = Smooth(Intermediate(base_classifier, 5, 0.1), get_num_classes(args.dataset), args.sigma)
+    else:
+        smoothed_classifier = Smooth(base_classifier, get_num_classes(args.dataset), args.sigma)
 
     # prepare output file
     f = open(args.outfile, 'w')

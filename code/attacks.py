@@ -43,10 +43,12 @@ class PGD_L2(Attacker):
         self.device = device
 
     def attack(self, model: nn.Module, inputs: torch.Tensor, labels: torch.Tensor,
-               noise: torch.Tensor = None, num_noise_vectors=1, targeted: bool = False, no_grad=False) -> torch.Tensor:
+               noise: torch.Tensor = None, num_noise_vectors=1, targeted: bool = False, no_grad=False, entropy_attack: bool = False) -> torch.Tensor:
         if num_noise_vectors == 1:
-            return self._attack(model, inputs, labels, noise, targeted)
+            return self._attack(model, inputs, labels, noise, targeted, entropy_attack)
         else:
+            if entropy_attack:
+                raise NotImplementedError("entropy attack not yet implemented for multinoise")
             if no_grad:
                 with torch.no_grad():
                     return self._attack_mutlinoise_no_grad(model, inputs, labels, noise, num_noise_vectors, targeted)
@@ -55,7 +57,7 @@ class PGD_L2(Attacker):
 
 
     def _attack(self, model: nn.Module, inputs: torch.Tensor, labels: torch.Tensor,
-               noise: torch.Tensor = None, targeted: bool = False) -> torch.Tensor:
+               noise: torch.Tensor = None, targeted: bool = False, entropy_attack: bool = False) -> torch.Tensor:
         """
         Performs the attack of the model for the inputs and labels.
 
@@ -91,8 +93,11 @@ class PGD_L2(Attacker):
                 adv = adv + noise
             logits = model(adv)
             pred_labels = logits.argmax(1)
-            ce_loss = F.cross_entropy(logits, labels, reduction='sum')
-            loss = multiplier * ce_loss
+            if entropy_attack:
+                loss = torch.sum(torch.sum(torch.log2(F.softmax(logits, 1)), dim=1))
+            else:
+                ce_loss = F.cross_entropy(logits, labels, reduction='sum')
+                loss = multiplier * ce_loss
 
             optimizer.zero_grad()
             loss.backward()
