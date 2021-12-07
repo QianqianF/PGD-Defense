@@ -14,25 +14,36 @@ import math
 # resnet50 - the classic ResNet-50, sized for ImageNet
 # cifar_resnet20 - a 20-layer residual network sized for CIFAR
 # cifar_resnet110 - a 110-layer residual network sized for CIFAR
-ARCHITECTURES = ["cifar_resnet20", "resnet50", "cifar_resnet110", "imagenet32_resnet110", "cifar_bbb_vgg11"]
+ARCHITECTURES = ["cifar_resnet20", "resnet50", "cifar_resnet110", "imagenet32_resnet110", "cifar_bbb_vgg11", "cifar_vgg11"]
 
 @variational_estimator
 class NormalizedVgg(nn.Module):
     '''
     VGG model 
     '''
-    def __init__(self, dataset, features, out_nodes=10):
+    def __init__(self, dataset, features, out_nodes=10, bayesian=True):
         super(NormalizedVgg, self).__init__()
         self.features = features
-        self.classifier = nn.Sequential(
-            #nn.Dropout(),
-            BayesianLinear(512, 512),
-            nn.ReLU(True),
-            #nn.Dropout(),
-            BayesianLinear(512, 512),
-            nn.ReLU(True),
-            BayesianLinear(512, out_nodes),
-        )
+        if bayesian:
+            self.classifier = nn.Sequential(
+                #nn.Dropout(),
+                BayesianLinear(512, 512),
+                nn.ReLU(True),
+                #nn.Dropout(),
+                BayesianLinear(512, 512),
+                nn.ReLU(True),
+                BayesianLinear(512, out_nodes),
+            )
+        else:
+            self.classifier = nn.Sequential(
+                #nn.Dropout(),
+                nn.Linear(512, 512),
+                nn.ReLU(True),
+                #nn.Dropout(),
+                nn.Linear(512, 512),
+                nn.ReLU(True),
+                nn.Linear(512, out_nodes),
+            )
         
         for m in self.modules():
             if isinstance(m, BayesianConv2d):
@@ -79,6 +90,8 @@ def get_architecture(arch: str, dataset: str) -> torch.nn.Module:
         model = resnet_cifar(depth=110, num_classes=1000).cuda()
     elif arch == "cifar_bbb_vgg11":
         return NormalizedVgg(dataset, make_layers(cfg['A'])).cuda()
+    elif arch == "cifar_vgg11":
+        return NormalizedVgg(dataset, make_layers(cfg['A']), bayesian=False).cuda()
 
     # Both layers work fine, We tried both, and they both
     # give very similar results 
