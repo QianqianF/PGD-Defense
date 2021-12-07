@@ -91,11 +91,12 @@ class PGD_L2(Attacker):
             adv = inputs + delta
             if noise is not None:
                 adv = adv + noise
-            logits = model(adv)
-            pred_labels = logits.argmax(1)
             if entropy_attack:
-                loss = torch.sum(torch.sum(torch.log2(F.softmax(logits, 1)), dim=1))
+                _, class_probabilities = model.sample_elbo_with_output(adv, labels, None, sample_nbr=8)
+                # loss = torch.sum(torch.sum(torch.log2(F.softmax(logits, 1)), dim=1))
+                loss = torch.sum(torch.sum(torch.log2(class_probabilities), dim=1))
             else:
+                logits = model(adv)
                 ce_loss = F.cross_entropy(logits, labels, reduction='sum')
                 loss = multiplier * ce_loss
 

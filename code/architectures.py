@@ -3,7 +3,7 @@ from datasets import get_normalize_layer, get_input_center_layer
 import torch
 import torch.backends.cudnn as cudnn
 import torch.nn as nn
-from torch.nn.functional import interpolate
+from torch.nn.functional import interpolate, softmax
 from torchvision.models.resnet import resnet50
 from blitz.models.b_vgg import vgg11, VGG, make_layers, cfg
 from blitz.utils import variational_estimator
@@ -52,13 +52,14 @@ class NormalizedVgg(nn.Module):
     def sample_elbo_with_output(self, inputs, labels,
                 criterion, sample_nbr, complexity_cost_weight=1):
         loss = 0.
-        outputs = 0.
+        class_probabilities = 0.
         for _ in range(sample_nbr):
             output = self(inputs)
-            outputs += output
-            loss += criterion(output, labels) 
-            loss += self.nn_kl_divergence() * complexity_cost_weight
-        return loss / sample_nbr, outputs / sample_nbr
+            class_probabilities += softmax(output, 1)
+            if criterion is not None:
+                loss += criterion(output, labels) 
+                loss += self.nn_kl_divergence() * complexity_cost_weight
+        return loss / sample_nbr, class_probabilities / sample_nbr
 
 
 def get_architecture(arch: str, dataset: str) -> torch.nn.Module:
