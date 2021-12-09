@@ -1,4 +1,5 @@
 from archs.cifar_resnet import resnet as resnet_cifar
+from resnet import resnet18
 from datasets import get_normalize_layer, get_input_center_layer
 import torch
 import torch.backends.cudnn as cudnn
@@ -14,7 +15,7 @@ import math
 # resnet50 - the classic ResNet-50, sized for ImageNet
 # cifar_resnet20 - a 20-layer residual network sized for CIFAR
 # cifar_resnet110 - a 110-layer residual network sized for CIFAR
-ARCHITECTURES = ["cifar_resnet20", "resnet50", "cifar_resnet110", "imagenet32_resnet110", "cifar_bbb_vgg11", "cifar_vgg11"]
+ARCHITECTURES = ["cifar_resnet20", "resnet50", "cifar_resnet110", "imagenet32_resnet110", "cifar_bbb_vgg11", "cifar_vgg11", "cifar_bbb_resnet18"]
 
 @variational_estimator
 class NormalizedVgg(nn.Module):
@@ -72,6 +73,21 @@ class NormalizedVgg(nn.Module):
                 loss += self.nn_kl_divergence() * complexity_cost_weight
         return loss / sample_nbr, class_probabilities / sample_nbr
 
+def make_layers_normal(cfg, batch_norm=False):
+    layers = []
+    in_channels = 3
+    for v in cfg:
+        if v == 'M':
+            layers += [nn.MaxPool2d(kernel_size=2, stride=2)]
+        else:
+            conv2d = nn.Conv2d(in_channels, v, kernel_size=(3, 3), padding=1, bias=True)
+            if batch_norm:
+                layers += [conv2d, nn.BatchNorm2d(v), nn.ReLU(inplace=True)]
+            else:
+                layers += [conv2d, nn.ReLU(inplace=True)]
+            in_channels = v
+    return nn.Sequential(*layers)
+
 
 def get_architecture(arch: str, dataset: str) -> torch.nn.Module:
     """ Return a neural network (with random weights)
@@ -92,7 +108,9 @@ def get_architecture(arch: str, dataset: str) -> torch.nn.Module:
     elif arch == "cifar_bbb_vgg11":
         return NormalizedVgg(dataset, make_layers(cfg['A'])).cuda()
     elif arch == "cifar_vgg11":
-        return NormalizedVgg(dataset, make_layers(cfg['A']), bayesian=False).cuda()
+        return NormalizedVgg(dataset, make_layers_normal(cfg['A']), bayesian=False).cuda()
+    elif arch == "cifar_bbb_resnet18":
+        return resnet18(dataset=dataset, num_classes=10).cuda()
 
     # Both layers work fine, We tried both, and they both
     # give very similar results 
