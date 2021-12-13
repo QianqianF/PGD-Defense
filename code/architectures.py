@@ -10,7 +10,7 @@ from blitz.utils import variational_estimator
 from blitz.modules import BayesianLinear, BayesianConv2d
 import math
 
-
+from swag import SWAG
 # resnet50 - the classic ResNet-50, sized for ImageNet
 # cifar_resnet20 - a 20-layer residual network sized for CIFAR
 # cifar_resnet110 - a 110-layer residual network sized for CIFAR
@@ -59,6 +59,18 @@ class NormalizedVgg(nn.Module):
             loss += criterion(output, labels) 
             loss += self.nn_kl_divergence() * complexity_cost_weight
         return loss / sample_nbr, outputs / sample_nbr
+
+def VGG_SWAG(nn.Module):
+    def __init__(self, dataset, features, out_nodes=10, no_cov_mat=True):
+        super(VGG_SWAG, self).__init__()
+        self.model = SWAG(NormalizedVgg, no_cov_mat=no_cov_mat, dataset, features)
+        
+    def forward(self, x):
+        return self.model.forward(x)
+
+    def sample(self, inputs, labels, criterion, samples_nbr, complexity_cost_weight):
+
+
 
 
 def get_architecture(arch: str, dataset: str) -> torch.nn.Module:

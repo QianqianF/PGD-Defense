@@ -94,6 +94,9 @@ parser.add_argument('--bbb', action='store_true',
 parser.add_argument('--bbb-ws-train', default=1, type=int, help="BbB: Number of weight samples at training time")
 parser.add_argument('--bbb-kl-posterior-prior-weight', default=1/50000, type=float, help="BbB: weight factor for the KL divergence between posterior and prior ditributions")
 
+parser.add_argument('--swag', action='store_true',
+                    help='Use VGG_SWAG as classifier')
+
 args = parser.parse_args()
 
 args.epsilon /= 256.0
