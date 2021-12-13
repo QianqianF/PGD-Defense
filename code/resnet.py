@@ -258,6 +258,18 @@ class ResNet(nn.Module):
         if self.normalize_layer is not None:
             x = self.normalize_layer(x)
         return self._forward_impl(x)
+    
+    def sample_elbo_with_output(self, inputs, labels,
+                criterion, sample_nbr, complexity_cost_weight=1):
+        loss = 0.
+        class_probabilities = 0.
+        for _ in range(sample_nbr):
+            output = self(inputs)
+            class_probabilities += nn.functional.softmax(output, 1)
+            if criterion is not None:
+                loss += criterion(output, labels) 
+                loss += self.nn_kl_divergence() * complexity_cost_weight
+        return loss / sample_nbr, class_probabilities / sample_nbr
 
 
 def _resnet(
