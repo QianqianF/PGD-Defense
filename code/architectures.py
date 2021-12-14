@@ -1,5 +1,5 @@
 from archs.cifar_resnet import resnet as resnet_cifar
-from resnet import resnet18
+from torchvision.models.resnet import resnet18
 from datasets import get_normalize_layer, get_input_center_layer
 import torch
 import torch.backends.cudnn as cudnn
@@ -15,7 +15,7 @@ import math
 # resnet50 - the classic ResNet-50, sized for ImageNet
 # cifar_resnet20 - a 20-layer residual network sized for CIFAR
 # cifar_resnet110 - a 110-layer residual network sized for CIFAR
-ARCHITECTURES = ["cifar_resnet20", "resnet50", "cifar_resnet110", "imagenet32_resnet110", "cifar_bbb_vgg11", "cifar_vgg11", "cifar_bbb_resnet18"]
+ARCHITECTURES = ["cifar_resnet20", "resnet50", "cifar_resnet110", "imagenet32_resnet110", "cifar_bbb_vgg11", "cifar_vgg11", "cifar_bbb_resnet18", "cifar_resnet18"]
 
 @variational_estimator
 class NormalizedVgg(nn.Module):
@@ -101,6 +101,8 @@ def get_architecture(arch: str, dataset: str) -> torch.nn.Module:
         cudnn.benchmark = True
     elif arch == "cifar_resnet20":
         model = resnet_cifar(depth=20, num_classes=10).cuda()
+    elif arch == "cifar_resnet18":
+        model = resnet18(num_classes=10).cuda()
     elif arch == "cifar_resnet110":
         model = resnet_cifar(depth=110, num_classes=10).cuda()
     elif arch == "imagenet32_resnet110":
