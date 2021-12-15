@@ -22,7 +22,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 from torch.optim import SGD, Optimizer
 import torch.optim as optim
-from torch.optim.lr_scheduler import StepLR
+from torch.optim.lr_scheduler import ReduceLROnPlateau, StepLR
 from torch.utils.data import DataLoader
 from train_utils import AverageMeter, accuracy, init_logfile, log, copy_code, requires_grad_
 
@@ -41,10 +41,15 @@ parser.add_argument('--batch', default=256, type=int, metavar='N',
                     help='batchsize (default: 256)')
 parser.add_argument('--lr', '--learning-rate', default=0.1, type=float,
                     help='initial learning rate', dest='lr')
-parser.add_argument('--lr_step_size', type=int, default=30,
+parser.add_argument('--lr-step-size', type=int, default=30,
                     help='How often to decrease learning by gamma.')
 parser.add_argument('--gamma', type=float, default=0.1,
                     help='LR is multiplied by gamma on schedule.')
+parser.add_argument('--reduce-lr-on-plateau', action='store_true')
+parser.add_argument('--patience', type=int, default=10,
+                    help='Number of epochs with no improvement after which learning rate will be reduced.')
+parser.add_argument('--threshold', type=float, default=1e-3,
+                    help='Threshold for measuring the new optimum, to only focus on significant changes.')      
 parser.add_argument('--momentum', default=0.9, type=float, metavar='M',
                     help='momentum')
 parser.add_argument('--weight-decay', '--wd', default=1e-4, type=float,
@@ -148,7 +153,10 @@ def main():
 
     criterion = CrossEntropyLoss().cuda()
     optimizer = SGD(model.parameters(), lr=args.lr, momentum=args.momentum, weight_decay=args.weight_decay)
-    scheduler = StepLR(optimizer, step_size=args.lr_step_size, gamma=args.gamma)
+    if args.reduce_lr_on_plateau:
+        scheduler = ReduceLROnPlateau(optimizer, factor=args.gamma, patience=args.patience, threshold=args.threshold)
+    else:
+        scheduler = StepLR(optimizer, step_size=args.lr_step_size, gamma=args.gamma)
 
     starting_epoch = 0
     logfilename = os.path.join(args.outdir, 'log.txt')
