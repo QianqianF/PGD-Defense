@@ -1,5 +1,6 @@
 from archs.cifar_resnet import resnet as resnet_cifar
 from torchvision.models.resnet import resnet18
+from resnet import resnet18 as resnet18_bbb
 from datasets import get_normalize_layer, get_input_center_layer
 import torch
 import torch.backends.cudnn as cudnn
@@ -112,7 +113,7 @@ def get_architecture(arch: str, dataset: str) -> torch.nn.Module:
     elif arch == "cifar_vgg11":
         return NormalizedVgg(dataset, make_layers_normal(cfg['A']), bayesian=False).cuda()
     elif arch == "cifar_bbb_resnet18":
-        return resnet18(dataset=dataset, num_classes=10).cuda()
+        return resnet18_bbb(dataset=dataset, num_classes=10).cuda()
 
     # Both layers work fine, We tried both, and they both
     # give very similar results 
