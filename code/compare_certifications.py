@@ -1,4 +1,5 @@
 import argparse
+from decimal import *
 
 parser = argparse.ArgumentParser(description='Compare certification results')
 parser.add_argument("file0", type=str)
@@ -13,20 +14,21 @@ with open(args.file1) as inp:
     columns1 = list(zip(*(line.strip().split('\t') for line in inp)))
 
 limit = min(len(columns0[0]), len(columns1[0]))
+getcontext().prec = 32 * 32 * 3 * 2
 
 correct0 = 0
 correct1 = 0
 correct_both = 0
 relative_radius_sum = 0.
-certified_volume0 = 0.
-certified_volume1 = 0.
+certified_volume0 = Decimal(0.)
+certified_volume1 = Decimal(0.)
 for i in range(limit):
     if columns0[4][i] == '1':
         correct0 += 1
-        certified_volume0 += float(columns0[3][i]) ** (32 * 32 * 3)
+        certified_volume0 += Decimal(float(columns0[3][i])) ** Decimal(32 * 32 * 3)
     if columns1[4][i] == '1':
         correct1 += 1
-        certified_volume1 += float(columns1[3][i]) ** (32 * 32 * 3)
+        certified_volume1 += Decimal(float(columns1[3][i])) ** Decimal(32 * 32 * 3)
     if columns0[4][i] == '1' and columns1[4][i] == '1':
         correct_both += 1
         relative_radius = float(columns1[3][i]) / float(columns0[3][i])
