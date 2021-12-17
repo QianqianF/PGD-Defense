@@ -43,9 +43,9 @@ class PGD_L2(Attacker):
         self.device = device
 
     def attack(self, model: nn.Module, inputs: torch.Tensor, labels: torch.Tensor,
-               noise: torch.Tensor = None, num_noise_vectors=1, targeted: bool = False, no_grad=False, entropy_attack: bool = False) -> torch.Tensor:
+               noise: torch.Tensor = None, num_noise_vectors=1, targeted: bool = False, no_grad=False, entropy_attack: bool = False, entropy_samples: int = 1) -> torch.Tensor:
         if num_noise_vectors == 1:
-            return self._attack(model, inputs, labels, noise, targeted, entropy_attack)
+            return self._attack(model, inputs, labels, noise, targeted, entropy_attack, entropy_samples)
         else:
             if entropy_attack:
                 raise NotImplementedError("entropy attack not yet implemented for multinoise")
@@ -57,7 +57,7 @@ class PGD_L2(Attacker):
 
 
     def _attack(self, model: nn.Module, inputs: torch.Tensor, labels: torch.Tensor,
-               noise: torch.Tensor = None, targeted: bool = False, entropy_attack: bool = False) -> torch.Tensor:
+               noise: torch.Tensor = None, targeted: bool = False, entropy_attack: bool = False, entropy_samples: int = 1) -> torch.Tensor:
         """
         Performs the attack of the model for the inputs and labels.
 
@@ -92,9 +92,12 @@ class PGD_L2(Attacker):
             if noise is not None:
                 adv = adv + noise
             if entropy_attack:
-                _, class_probabilities = model.sample_elbo_with_output(adv, labels, None, sample_nbr=8)
-                # loss = torch.sum(torch.sum(torch.log2(F.softmax(logits, 1)), dim=1))
-                loss = torch.sum(torch.sum(torch.log2(class_probabilities), dim=1))
+                if entropy_samples == 1:
+                    logits = model(adv)
+                    loss = torch.sum(torch.sum(torch.log2(F.softmax(logits, 1)), dim=1))
+                else:
+                    _, class_probabilities = model.sample_elbo_with_output(adv, labels, None, sample_nbr=entropy_samples)
+                    loss = torch.sum(torch.sum(torch.log2(class_probabilities), dim=1))
             else:
                 logits = model(adv)
                 ce_loss = F.cross_entropy(logits, labels, reduction='sum')

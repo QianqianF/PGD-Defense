@@ -24,7 +24,12 @@ parser.add_argument("--split", choices=["train", "test"], default="test", help="
 parser.add_argument("--N0", type=int, default=100)
 parser.add_argument("--N", type=int, default=100000, help="number of samples to use")
 parser.add_argument("--alpha", type=float, default=0.001, help="failure probability")
+
 parser.add_argument('--use-intermediate', action='store_true', help="use intermediate PGD layer for certification")
+parser.add_argument("--pgd-steps", type=int, default=5, help="number of PGD steps in intermediate layer")
+parser.add_argument("--pgd-epsilon", type=float, default=0.1, help="maximum l2 perturbation applied to samples in the intermediate layer")
+parser.add_argument("--pgd-bnn-samples", type=int, default=1, help="BNN samples to take at each step of the entropy attack (leave at 1 for plain NNs)")
+
 parser.add_argument("--profile", action='store_true')
 args = parser.parse_args()
 
@@ -36,7 +41,7 @@ if __name__ == "__main__":
 
     # create the smooothed classifier
     if args.use_intermediate:
-        smoothed_classifier = Smooth(Intermediate(base_classifier, 5, 0.1), get_num_classes(args.dataset), args.sigma)
+        smoothed_classifier = Smooth(Intermediate(base_classifier, args.pgd_steps, args.pgd_epsilon, args.pgd_bnn_samples), get_num_classes(args.dataset), args.sigma)
     else:
         smoothed_classifier = Smooth(base_classifier, get_num_classes(args.dataset), args.sigma)
 
