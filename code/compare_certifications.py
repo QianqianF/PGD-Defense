@@ -23,10 +23,10 @@ certified_volume1 = 0.
 for i in range(limit):
     if columns0[4][i] == '1':
         correct0 += 1
-        certified_volume0 += float(columns0[3][i]) ^ (32 * 32 * 3)
+        certified_volume0 += float(columns0[3][i]) ^ float(32 * 32 * 3)
     if columns1[4][i] == '1':
         correct1 += 1
-        certified_volume1 += float(columns1[3][i]) ^ (32 * 32 * 3)
+        certified_volume1 += float(columns1[3][i]) ^ float(32 * 32 * 3)
     if columns0[4][i] == '1' and columns1[4][i] == '1':
         correct_both += 1
         relative_radius = float(columns1[3][i]) / float(columns0[3][i])
