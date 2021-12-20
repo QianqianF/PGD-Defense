@@ -103,6 +103,10 @@ parser.add_argument('--bbb', action='store_true',
 parser.add_argument('--bbb-ws-train', default=1, type=int, help="BbB: Number of weight samples at training time")
 parser.add_argument('--bbb-kl-posterior-prior-weight', default=1/50000, type=float, help="BbB: weight factor for the KL divergence between posterior and prior ditributions")
 
+# Augmentation variants
+parser.add_argument('--noise-sd-sampling', action='store_true',
+                    help='Sample magnitude of augmentation noise')
+
 args = parser.parse_args()
 
 args.epsilon /= 256.0
@@ -278,7 +282,7 @@ def train(loader: DataLoader, model: torch.nn.Module, criterion, optimizer: Opti
             inputs = inputs.repeat((1, args.num_noise_vec, 1, 1)).view(batch[0].shape)
 
             # augment inputs with noise
-            noise = torch.randn_like(inputs, device='cuda') * noise_sd
+            noise = sample_augmentation_noise(noise_sd, inputs)
 
             if args.adv_training:
                 requires_grad_(model, False)
@@ -361,6 +365,13 @@ def train(loader: DataLoader, model: torch.nn.Module, criterion, optimizer: Opti
 
     return (losses.avg, top1.avg)
 
+def sample_augmentation_noise(noise_sd, inputs):
+    if args.noise_sd_sampling:
+        noise = torch.randn_like(inputs, device='cuda') * noise_sd * torch.rand_like(inputs, device='cuda')
+    else:
+        noise = torch.randn_like(inputs, device='cuda') * noise_sd
+    return noise
+
 
 def train_evaluate_model(model, noisy_inputs, targets, criterion):
     if args.bbb:
@@ -398,7 +409,8 @@ def test(loader: DataLoader, model: torch.nn.Module, criterion, noise_sd: float,
             targets = targets.cuda()
 
             # augment inputs with noise
-            noise = torch.randn_like(inputs, device='cuda') * noise_sd
+            # noise = torch.randn_like(inputs, device='cuda') * noise_sd
+            noise = sample_augmentation_noise(noise_sd, inputs)
             noisy_inputs = inputs + noise
             
             # compute output
