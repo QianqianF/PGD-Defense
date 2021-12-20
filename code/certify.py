@@ -39,16 +39,16 @@ if __name__ == "__main__":
     base_classifier = get_architecture(checkpoint["arch"], args.dataset)
     base_classifier.load_state_dict(checkpoint['state_dict'])
 
-    # create the smooothed classifier
-    if args.use_intermediate:
-        smoothed_classifier = Smooth(Intermediate(base_classifier, args.pgd_steps, args.pgd_epsilon, args.pgd_bnn_samples), get_num_classes(args.dataset), args.sigma)
-    else:
-        smoothed_classifier = Smooth(base_classifier, get_num_classes(args.dataset), args.sigma)
-
     # prepare output file
     f = open(args.outfile, 'w')
     if not args.profile:
         print("idx\tlabel\tpredict\tradius\tcorrect\ttime", file=f, flush=True)
+
+    # create the smooothed classifier
+    if args.use_intermediate:
+        smoothed_classifier = Smooth(Intermediate(base_classifier, args.pgd_steps, args.pgd_epsilon, args.pgd_bnn_samples, f), get_num_classes(args.dataset), args.sigma)
+    else:
+        smoothed_classifier = Smooth(base_classifier, get_num_classes(args.dataset), args.sigma)
 
     # iterate through the dataset
     dataset = get_dataset(args.dataset, args.split)

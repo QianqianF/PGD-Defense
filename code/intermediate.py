@@ -12,7 +12,7 @@ from attacks import PGD_L2
 class Intermediate(nn.Module):
     """An PGD based intermediate layer to attack the uncertainty before doing a classification"""
 
-    def __init__(self, base_classifier: torch.nn.Module, num_steps: int, epsilon: float, entropy_samples: int = 1):
+    def __init__(self, base_classifier: torch.nn.Module, num_steps: int, epsilon: float, entropy_samples: int = 1, outfile = None):
         """
         :param base_classifier: maps from [batch x channel x height x width] to [batch x num_classes]
         :param num_classes:
@@ -23,15 +23,16 @@ class Intermediate(nn.Module):
         self.num_steps = num_steps
         self.epsilon = epsilon
         self.entropy_samples = entropy_samples
+        self.outfile = outfile
 
     def forward(self, batch, noise):
-        print('initial stddev:', math.sqrt(torch.mean(noise * noise).cpu().item()))
-        print('initial mean l2 norm:', torch.mean(torch.norm(noise, dim=1)).cpu().item())
+        print('initial stddev:', math.sqrt(torch.mean(noise * noise).cpu().item()), file=self.outfile, flush=True)
+        print('initial mean l2 norm:', torch.mean(torch.norm(noise, dim=1)).cpu().item(), file=self.outfile, flush=True)
         x = batch + noise
         x = torch.clip(x, 0., 1.)
         attacker = PGD_L2(steps=1, device='cuda', max_norm=self.epsilon / self.num_steps)
         for i in range(self.num_steps):
             x = attacker.attack(self.base_classifier, x, None, entropy_attack=True, entropy_samples=self.entropy_samples)
-            print('stddev after PGD step ' + str(i) + ':', math.sqrt(torch.mean((x - batch) * (x - batch)).cpu().item()))
-            print('mean l2 norm after PGD step ' + str(i) + ':', torch.mean(torch.norm(x - batch, dim=1)).cpu().item())
+            print('stddev after PGD step ' + str(i) + ':', math.sqrt(torch.mean((x - batch) * (x - batch)).cpu().item()), file=self.outfile, flush=True)
+            print('mean l2 norm after PGD step ' + str(i) + ':', torch.mean(torch.norm(x - batch, dim=1)).cpu().item(), file=self.outfile, flush=True)
         return self.base_classifier(x)
