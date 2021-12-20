@@ -7,7 +7,7 @@ import copy
 import datetime
 import os
 import time
-import wandb
+# import wandb
 
 
 # from IPython import embed
@@ -28,7 +28,7 @@ from torch.utils.data import DataLoader
 from train_utils import AverageMeter, accuracy, init_logfile, log, copy_code, requires_grad_
 
 #wandb login()
-wandb.init(project="test-project", entity="pgd-defense")
+# wandb.init(project="test-project", entity="pgd-defense")
 
 LABELLED = 0
 PSEUDO_LABELLED = 1
@@ -112,32 +112,32 @@ args = parser.parse_args()
 args.epsilon /= 256.0
 args.init_norm_DDN /= 256.0
 
-wandb.config = {
-  "dataset": args.dataset,
-  "architecture": args.arch,
-  "epochs": args.epochs, 
-  "batch_size": args.batch,
-  "learning_rate": args.lr,
-  "lr_step_size": args.lr_step_size,
-  "gamma": args.gamma,
-  "momemtum": args.momentum,
-  "weight_decay": args.weight_decay,
-  "noise_sd": args.noise_sd,
-  "adv-training": args.adv_training,
-  "attack": args.attack,
-  "epsilon": args.epsilon,
-  "num-steps": args.num_steps,
-  "warmup": args.warmup,
-  "num-noise-vec": args.num_noise_vec,
-  "train-multi-noise": args.train_multi_noise,
-  "no-grad-attack": args.no_grad_attack,
-  "PGD-random-start": args.random_start,
-  "init-norm-DDN": args.init_norm_DDN,
-  "gamma-DDN": args.gamma_DDN,
-  "bbb": args.bbb,
-  "bbb-ws-train": args.bbb_ws_train,
-  "bbb-kl-posterior-prior-weight ": args.bbb_kl_posterior_prior_weight
-}
+# wandb.config = {
+#   "dataset": args.dataset,
+#   "architecture": args.arch,
+#   "epochs": args.epochs, 
+#   "batch_size": args.batch,
+#   "learning_rate": args.lr,
+#   "lr_step_size": args.lr_step_size,
+#   "gamma": args.gamma,
+#   "momemtum": args.momentum,
+#   "weight_decay": args.weight_decay,
+#   "noise_sd": args.noise_sd,
+#   "adv-training": args.adv_training,
+#   "attack": args.attack,
+#   "epsilon": args.epsilon,
+#   "num-steps": args.num_steps,
+#   "warmup": args.warmup,
+#   "num-noise-vec": args.num_noise_vec,
+#   "train-multi-noise": args.train_multi_noise,
+#   "no-grad-attack": args.no_grad_attack,
+#   "PGD-random-start": args.random_start,
+#   "init-norm-DDN": args.init_norm_DDN,
+#   "gamma-DDN": args.gamma_DDN,
+#   "bbb": args.bbb,
+#   "bbb-ws-train": args.bbb_ws_train,
+#   "bbb-kl-posterior-prior-weight ": args.bbb_kl_posterior_prior_weight
+# }
 
 # torch.manual_seed(0)
 # torch.cuda.manual_seed_all(0)
@@ -354,14 +354,14 @@ def train(loader: DataLoader, model: torch.nn.Module, criterion, optimizer: Opti
                 epoch, i, len(loader), batch_time=batch_time,
                 data_time=data_time, loss=losses, top1=top1, top5=top5))
 
-        wandb.log({
-            "Epoch": epoch,
-            "Time": batch_time,
-            "Data": data_time,
-            "Loss": losses,
-            "Acc@1": top1,
-            "Acc@5": top5            
-            })
+        # wandb.log({
+        #     "Epoch": epoch,
+        #     "Time": batch_time,
+        #     "Data": data_time,
+        #     "Loss": losses,
+        #     "Acc@1": top1,
+        #     "Acc@5": top5            
+        #     })
 
     return (losses.avg, top1.avg)
 
