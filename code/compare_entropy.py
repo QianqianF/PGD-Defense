@@ -6,6 +6,7 @@ import os
 import numpy as np
 from time import time
 
+import torch.nn.functional as F
 from architectures import get_architecture
 from intermediate import Intermediate
 from core import Smooth
@@ -22,7 +23,7 @@ parser.add_argument("--sample_size", type=int, default=10)
 args = parser.parse_args()
 
 def entropy(logits):
-	return torch.sum(torch.sum(torch.log2(F.softmax(logits, 1)), dim=1))
+	return torch.sum(torch.log2(F.softmax(logits, 1)), dim=1)
 
 
 if __name__ == "__main__":
@@ -42,33 +43,37 @@ if __name__ == "__main__":
     # train_loader = MultiDatasetsDataLoader([labelled_loader])
     # test_loader = DataLoader(test_dataset, shuffle=False, batch_size=args.batch,
     #                          num_workers=args.workers, pin_memory=pin_memory)
-
+    
     results = []
     for i in range(len(test_dataset)):
-
+        
         (x, label) = test_dataset[i]
         x = x[None, :].cuda()
 
         _, channel, height, width = x.shape
-        batch = torch.zeros((args.sample_size+1, channel, height, width))
+        batch = torch.zeros((args.sample_size+1, channel, height, width)).cuda()
         batch[0] = x
 
-        for i in args.sample_size:
-            noise = torch.randn_like(x, device='cuda') * self.sigma
+        for i in range(args.sample_size):
+            noise = torch.randn_like(x, device='cuda') * args.sigma
             batch[i+1] = x + noise
 
-        logits = self.base_classifier(batch)
-        clean_entropy = entropy(logits[0])
+        logits = base_classifier(batch)
+        #print(logits.shape)
+        #clean_entropy = entropy(logits[0])
 
-        noise_entropy = torch.zeros(args.sample_size)
-        for i in args.sample_size:
-        	noise_entropy[i] = entropy(logits[i+1])
-
+        #noise_entropy = torch.zeros(args.sample_size)
+        #for i in range(args.sample_size):
+        #    noise_entropy[i] = entropy(logits[i+1])
+        
+        batch_entropy = entropy(logits)
+        clean_entropy = batch_entropy[0]
+        noise_entropy = batch_entropy[1:]
         diff = (noise_entropy - clean_entropy).mean()
 
         res = {"clean_entropy": clean_entropy, "noise_entropy": noise_entropy, "diff": diff}
         results.append(res)
-        print(res)
+        #print(res)
 
     np.save('entropy', results)
 
