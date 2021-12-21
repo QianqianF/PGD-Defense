@@ -384,9 +384,9 @@ def sample_augmentation_noise(noise_sd, inputs):
 def train_evaluate_model(model, inputs, noise, targets, criterion):
     noisy_inputs = inputs + noise
     if args.max_aleatoric_label_noise > 0.:
-        noise_norm = torch.linalg.norm(noise, dim=1)
+        noise_norm = torch.linalg.norm(noise.view(inputs.shape[0], -1), dim=1)
         alpha = torch.clamp(noise_norm / chi.isf(.1, 3072, scale=args.noise_sd), 0., 1.)
-        targets = F.one_hot(targets) * (1 - alpha) + (torch.ones_like(targets) * args.max_aleatoric_label_noise + F.one_hot(targets) * (1 - args.max_aleatoric_label_noise)) * alpha
+        targets = F.one_hot(targets, num_classes=10) * (1 - alpha)[:, None] + ((torch.ones_like(targets) / 10. * args.max_aleatoric_label_noise)[:, None] + F.one_hot(targets, num_classes=10) * (1 - args.max_aleatoric_label_noise)) * alpha[:, None]
     if args.bbb:
         loss, outputs = model.sample_elbo_with_output(inputs=noisy_inputs,
                 labels=targets,
