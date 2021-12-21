@@ -47,16 +47,22 @@ if __name__ == "__main__":
     for i in range(len(test_dataset)):
 
         (x, label) = test_dataset[i]
-        x = x.cuda()
+        x = x[None, :].cuda()
 
-        logits = base_classifier(x)
-        clean_entropy = entropy(logits)
+        _, channel, height, width = x.shape
+        batch = torch.zeros((args.sample_size+1, channel, height, width))
+        batch[0] = x
+
+        for i in args.sample_size:
+            noise = torch.randn_like(x, device='cuda') * self.sigma
+            batch[i+1] = x + noise
+
+        logits = self.base_classifier(batch)
+        clean_entropy = entropy(logits[0])
 
         noise_entropy = torch.zeros(args.sample_size)
         for i in args.sample_size:
-            noise = torch.randn_like(x, device='cuda') * self.sigma
-            logits = self.base_classifier(x + noise)
-            noise_entropy[i] = entropy(logits)
+        	noise_entropy[i] = entropy(logits[i+1])
 
         diff = (noise_entropy - clean_entropy).mean()
 
