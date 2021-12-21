@@ -328,8 +328,8 @@ def train(loader: DataLoader, model: torch.nn.Module, criterion, optimizer: Opti
 
         if not args.train_multi_noise:
             noisy_inputs = torch.cat(noisy_inputs_list)
-            inputs = torch.cat(inputs)
-            noise = torch.cat(noise)
+            inputs = torch.cat(inputs_list)
+            noise = torch.cat(noise_list)
             targets = batch[1].cuda()
             assert len(targets) == len(noisy_inputs)
 
