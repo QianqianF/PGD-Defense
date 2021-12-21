@@ -16,6 +16,7 @@ from attacks import Attacker, PGD_L2, DDN
 from datasets import get_dataset, DATASETS, get_num_classes,\
                      MultiDatasetsDataLoader, TiTop50KDataset
 import numpy as np
+from scipy.stats import chi
 import torch
 from torch.autograd import Variable
 from torch.nn import CrossEntropyLoss
@@ -105,7 +106,8 @@ parser.add_argument('--bbb-kl-posterior-prior-weight', default=1/50000, type=flo
 
 # Augmentation variants
 parser.add_argument('--noise-sd-sampling', action='store_true',
-                    help='Sample magnitude of augmentation noise')
+                    help='Sample magnitude of augmentation noise uniformly between 0 and noise_sd')
+parser.add_argument('--max-aleatoric-label-noise', default=0., type=float, help='Maximum aleatoric noise added to the labels of noisy images')
 
 args = parser.parse_args()
 
@@ -275,6 +277,8 @@ def train(loader: DataLoader, model: torch.nn.Module, criterion, optimizer: Opti
 
         mini_batches = get_minibatches(batch, args.num_noise_vec)
         noisy_inputs_list = []
+        inputs_list = []
+        noise_list = []
         for inputs, targets in mini_batches:
             inputs = inputs.cuda()
             targets = targets.cuda()
@@ -300,7 +304,7 @@ def train(loader: DataLoader, model: torch.nn.Module, criterion, optimizer: Opti
 
                 targets = targets.unsqueeze(1).repeat(1, args.num_noise_vec).reshape(-1,1).squeeze()
                 
-                outputs, loss = train_evaluate_model(model, noisy_inputs, targets, criterion)
+                outputs, loss = train_evaluate_model(model, inputs, noise, targets, criterion)
 
                 acc1, acc5 = accuracy(outputs, targets, topk=(1, 5))
                 losses.update(loss.item(), noisy_inputs.size(0))
@@ -319,13 +323,17 @@ def train(loader: DataLoader, model: torch.nn.Module, criterion, optimizer: Opti
                 noise = noise[::args.num_noise_vec]
                 # noise = torch.randn_like(inputs, device='cuda') * noise_sd
                 noisy_inputs_list.append(inputs + noise)
+                inputs_list.append(inputs)
+                noise_list.append(noise)
 
         if not args.train_multi_noise:
             noisy_inputs = torch.cat(noisy_inputs_list)
+            inputs = torch.cat(inputs)
+            noise = torch.cat(noise)
             targets = batch[1].cuda()
             assert len(targets) == len(noisy_inputs)
 
-            outputs, loss = train_evaluate_model(model, noisy_inputs, targets, criterion)
+            outputs, loss = train_evaluate_model(model, inputs, noise, targets, criterion)
 
             # measure accuracy and record loss
             acc1, acc5 = accuracy(outputs, targets, topk=(1, 5))
@@ -373,7 +381,12 @@ def sample_augmentation_noise(noise_sd, inputs):
     return noise
 
 
-def train_evaluate_model(model, noisy_inputs, targets, criterion):
+def train_evaluate_model(model, inputs, noise, targets, criterion):
+    noisy_inputs = inputs + noise
+    if args.max_aleatoric_label_noise > 0.:
+        noise_norm = torch.linalg.norm(noise, dim=1)
+        alpha = torch.clamp(noise_norm / chi.isf(.1, 3072, scale=args.noise_sd), 0., 1.)
+        targets = F.one_hot(targets) * (1 - alpha) + (torch.ones_like(targets) * args.max_aleatoric_label_noise + F.one_hot(targets) * (1 - args.max_aleatoric_label_noise)) * alpha
     if args.bbb:
         loss, outputs = model.sample_elbo_with_output(inputs=noisy_inputs,
                 labels=targets,
