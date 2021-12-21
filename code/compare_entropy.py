@@ -46,7 +46,7 @@ if __name__ == "__main__":
     results = []
     for i in range(len(test_dataset)):
 
-        (x, label) = dataset[i]
+        (x, label) = test_dataset[i]
         x = x.cuda()
 
         logits = base_classifier(x)
