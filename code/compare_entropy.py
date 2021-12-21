@@ -23,7 +23,7 @@ parser.add_argument("--sample_size", type=int, default=10)
 args = parser.parse_args()
 
 def entropy(logits):
-	return torch.sum(torch.log2(F.softmax(logits, 1)), dim=1)
+	return torch.sum(logits * torch.log2(F.softmax(logits, 1)), dim=1)
 
 
 if __name__ == "__main__":
