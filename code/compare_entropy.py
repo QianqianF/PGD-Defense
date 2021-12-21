@@ -18,8 +18,8 @@ parser.add_argument("dataset", choices=DATASETS, help="which dataset")
 parser.add_argument("base_classifier", type=str, help="path to saved pytorch model of base classifier")
 parser.add_argument("sigma", type=float, help="noise hyperparameter")
 
-parser.add_argument("--batch", type=int, default=1000, help="batch size")
 parser.add_argument("--sample_size", type=int, default=10)
+args = parser.parse_args()
 
 def entropy(logits):
 	return torch.sum(torch.sum(torch.log2(F.softmax(logits, 1)), dim=1))
