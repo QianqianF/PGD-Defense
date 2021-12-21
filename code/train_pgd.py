@@ -233,11 +233,11 @@ def main():
         if args.adv_training:
             log(logfilename, "{}\t{:.2f}\t{:.3}\t{:.3}\t{:.3}\t{:.3}\t{:.3}\t{:.3}".format(
                 epoch, after - before,
-                scheduler.get_last_lr()[0] if args.reduce_lr_on_plateau else scheduler.get_lr()[0], train_loss, test_loss, train_acc, test_acc, test_acc_normal))
+                scheduler._last_lr[0] if args.reduce_lr_on_plateau else scheduler.get_lr()[0], train_loss, test_loss, train_acc, test_acc, test_acc_normal))
         else:
             log(logfilename, "{}\t{:.2f}\t{:.3}\t{:.3}\t{:.3}\t{:.3}\t{:.3}".format(
                 epoch, after - before,
-                scheduler.get_last_lr()[0] if args.reduce_lr_on_plateau else scheduler.get_lr()[0], train_loss, test_loss, train_acc, test_acc))
+                scheduler._last_lr[0] if args.reduce_lr_on_plateau else scheduler.get_lr()[0], train_loss, test_loss, train_acc, test_acc))
 
         torch.save({
             'epoch': epoch + 1,
