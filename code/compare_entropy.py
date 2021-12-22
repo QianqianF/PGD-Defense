@@ -18,6 +18,7 @@ parser = argparse.ArgumentParser(description='Compare entropies of clean vs pert
 parser.add_argument("dataset", choices=DATASETS, help="which dataset")
 parser.add_argument("base_classifier", type=str, help="path to saved pytorch model of base classifier")
 parser.add_argument("sigma", type=float, help="noise hyperparameter")
+parser.add_argument("outfile", type=str, help="output file")
 
 parser.add_argument("--sample_size", type=int, default=10)
 args = parser.parse_args()
@@ -45,7 +46,9 @@ if __name__ == "__main__":
     # test_loader = DataLoader(test_dataset, shuffle=False, batch_size=args.batch,
     #                          num_workers=args.workers, pin_memory=pin_memory)
     
-    results = []
+    # results = []
+    f = open(args.outfile, 'w')
+    print("idx\tclean_entropy\tnoise_entropy\tdiff", file=f, flush=True)
     for i in range(len(test_dataset)):
         
         with torch.no_grad():
@@ -73,11 +76,12 @@ if __name__ == "__main__":
             noise_entropy = batch_entropy[1:]
             diff = (noise_entropy - clean_entropy).mean()
 
-            res = {"clean_entropy": clean_entropy, "noise_entropy": noise_entropy, "diff": diff}
-            results.append(res)
+            print("{}\t{}\t{}\t{}".format(i, clean_entropy, noise_entropy, diff), file=f, flush=True)
+            # res = {"clean_entropy": clean_entropy, "noise_entropy": noise_entropy, "diff": diff}
+            # results.append(res)
             #print(res)
 
-    np.save('entropy', results)
+    # np.save('entropy', results)
 
 
 
