@@ -24,7 +24,7 @@ args = parser.parse_args()
 
 def entropy(logits):
     class_probabilities = F.softmax(logits, 1)
-	return -torch.sum(class_probabilities * torch.log2(class_probabilities), dim=1)
+    return -torch.sum(class_probabilities * torch.log2(class_probabilities), dim=1)
 
 
 if __name__ == "__main__":
