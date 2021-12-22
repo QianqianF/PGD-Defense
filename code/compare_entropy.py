@@ -21,11 +21,11 @@ parser.add_argument("sigma", type=float, help="noise hyperparameter")
 parser.add_argument("outfile", type=str, help="output file")
 
 parser.add_argument("--sample_size", type=int, default=10)
+parser.add_argument('--bbb-samples', type=int, default=1) 
 args = parser.parse_args()
 
-def entropy(logits):
-    class_probabilities = F.softmax(logits, 1)
-    return -torch.sum(class_probabilities * torch.log2(class_probabilities), dim=1)
+def entropy(class_probabilities):
+    return -torch.sum(torch.nan_to_num(class_probabilities * torch.log2(class_probabilities)), dim=1)
 
 
 if __name__ == "__main__":
@@ -54,16 +54,21 @@ if __name__ == "__main__":
         with torch.no_grad():
             (x, label) = test_dataset[i]
             x = x[None, :].cuda()
+            label = torch.tensor([label] * (args.sample_size + 1)).cuda()
 
             _, channel, height, width = x.shape
             batch = torch.zeros((args.sample_size+1, channel, height, width)).cuda()
             batch[0] = x
 
-            for i in range(args.sample_size):
+            for j in range(args.sample_size):
                 noise = torch.randn_like(x, device='cuda') * args.sigma
-                batch[i+1] = x + noise
+                batch[j+1] = x + noise
 
-            logits = base_classifier(batch)
+            if args.bbb_samples > 1:
+                _, class_probabilities = base_classifier.sample_elbo_with_output(batch,label, torch.nn.CrossEntropyLoss(), args.bbb_samples)
+            else:
+                logits = base_classifier(batch)
+                class_probabilities = F.softmax(logits, 1)
             #print(logits.shape)
             #clean_entropy = entropy(logits[0])
 
@@ -71,7 +76,7 @@ if __name__ == "__main__":
             #for i in range(args.sample_size):
             #    noise_entropy[i] = entropy(logits[i+1])
             
-            batch_entropy = entropy(logits)
+            batch_entropy = entropy(class_probabilities)
             clean_entropy = batch_entropy[0]
             noise_entropy = batch_entropy[1:]
             diff = (noise_entropy - clean_entropy).mean()
