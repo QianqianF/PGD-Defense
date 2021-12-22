@@ -95,10 +95,10 @@ class PGD_L2(Attacker):
                 if entropy_samples == 1:
                     logits = model(adv)
                     class_probabilities = F.softmax(logits, 1)
-                    loss = torch.sum(torch.sum(class_probabilities * torch.log2(class_probabilities), dim=1))
+                    loss = -torch.sum(torch.sum(class_probabilities * torch.log2(class_probabilities), dim=1))
                 else:
                     _, class_probabilities = model.sample_elbo_with_output(adv, labels, None, sample_nbr=entropy_samples)
-                    loss = torch.sum(torch.sum(class_probabilities * torch.log2(class_probabilities), dim=1))
+                    loss = -torch.sum(torch.sum(class_probabilities * torch.log2(class_probabilities), dim=1))
             else:
                 logits = model(adv)
                 ce_loss = F.cross_entropy(logits, labels, reduction='sum')
