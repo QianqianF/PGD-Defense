@@ -1,0 +1,162 @@
+Sender: LSF System <lsfadmin@eu-g2-08>
+Subject: Job 197333497: <python code/analyze_bnn.py cifar10 ./output_aug_adv_resnet18/checkpoint.pth.tar 0.12 ./output_aug_adv_resnet18/ece --batch 1000 --samples 1> in cluster <euler> Exited
+
+Job <python code/analyze_bnn.py cifar10 ./output_aug_adv_resnet18/checkpoint.pth.tar 0.12 ./output_aug_adv_resnet18/ece --batch 1000 --samples 1> was submitted from host <eu-login-44> by user <arschmid> in cluster <euler> at Sat Dec 18 02:19:02 2021
+Job was executed on host(s) <eu-g2-08>, in queue <gpu.4h>, as user <arschmid> in cluster <euler> at Sat Dec 18 02:19:25 2021
+</cluster/home/arschmid> was used as the home directory.
+</cluster/home/arschmid/PGD-Defense/output_aug_adv_resnet18> was used as the working directory.
+Started at Sat Dec 18 02:19:25 2021
+Terminated at Sat Dec 18 02:19:28 2021
+Results reported at Sat Dec 18 02:19:28 2021
+
+Your job looked like:
+
+------------------------------------------------------------
+# LSBATCH: User input
+python code/analyze_bnn.py cifar10 ./output_aug_adv_resnet18/checkpoint.pth.tar 0.12 ./output_aug_adv_resnet18/ece --batch 1000 --samples 1
+------------------------------------------------------------
+
+Exited with exit code 1.
+
+Resource usage summary:
+
+    CPU time :                                   0.14 sec.
+    Max Memory :                                 6 MB
+    Average Memory :                             -
+    Total Requested Memory :                     8192.00 MB
+    Delta Memory :                               8186.00 MB
+    Max Swap :                                   -
+    Max Processes :                              -
+    Max Threads :                                -
+    Run time :                                   32 sec.
+    Turnaround time :                            26 sec.
+
+The output (if any) follows:
+
+  File "code/analyze_bnn.py", line 37
+    print("batch_idx\taccuracy\ttime", file=f, flush=True)
+                                           ^
+SyntaxError: invalid syntax
+Sender: LSF System <lsfadmin@eu-g2-16>
+Subject: Job 197333502: <python code/analyze_bnn.py cifar10 ./output_aug_adv_resnet18/checkpoint.pth.tar 0.12 ./output_aug_adv_resnet18/ece --batch 1000 --samples> in cluster <euler> Exited
+
+Job <python code/analyze_bnn.py cifar10 ./output_aug_adv_resnet18/checkpoint.pth.tar 0.12 ./output_aug_adv_resnet18/ece --batch 1000 --samples> was submitted from host <eu-login-44> by user <arschmid> in cluster <euler> at Sat Dec 18 02:20:13 2021
+Job was executed on host(s) <eu-g2-16>, in queue <gpu.4h>, as user <arschmid> in cluster <euler> at Sat Dec 18 02:20:24 2021
+</cluster/home/arschmid> was used as the home directory.
+</cluster/home/arschmid/PGD-Defense/output_aug_adv_resnet18> was used as the working directory.
+Started at Sat Dec 18 02:20:24 2021
+Terminated at Sat Dec 18 02:20:26 2021
+Results reported at Sat Dec 18 02:20:26 2021
+
+Your job looked like:
+
+------------------------------------------------------------
+# LSBATCH: User input
+python code/analyze_bnn.py cifar10 ./output_aug_adv_resnet18/checkpoint.pth.tar 0.12 ./output_aug_adv_resnet18/ece --batch 1000 --samples
+------------------------------------------------------------
+
+Exited with exit code 1.
+
+Resource usage summary:
+
+    CPU time :                                   0.15 sec.
+    Max Memory :                                 6 MB
+    Average Memory :                             -
+    Total Requested Memory :                     8192.00 MB
+    Delta Memory :                               8186.00 MB
+    Max Swap :                                   -
+    Max Processes :                              -
+    Max Threads :                                -
+    Run time :                                   24 sec.
+    Turnaround time :                            13 sec.
+
+The output (if any) follows:
+
+  File "code/analyze_bnn.py", line 37
+    print("batch_idx\taccuracy\ttime", file=f, flush=True)
+                                           ^
+SyntaxError: invalid syntax
+Sender: LSF System <lsfadmin@eu-g2-16>
+Subject: Job 197333601: <python code/analyze_bnn.py cifar10 ./output_aug_adv_resnet18/checkpoint.pth.tar 0.12 ./output_aug_adv_resnet18/ece --batch 1000 --samples> in cluster <euler> Exited
+
+Job <python code/analyze_bnn.py cifar10 ./output_aug_adv_resnet18/checkpoint.pth.tar 0.12 ./output_aug_adv_resnet18/ece --batch 1000 --samples> was submitted from host <eu-login-44> by user <arschmid> in cluster <euler> at Sat Dec 18 02:39:11 2021
+Job was executed on host(s) <eu-g2-16>, in queue <gpu.4h>, as user <arschmid> in cluster <euler> at Sat Dec 18 02:39:24 2021
+</cluster/home/arschmid> was used as the home directory.
+</cluster/home/arschmid/PGD-Defense/output_aug_adv_resnet18> was used as the working directory.
+Started at Sat Dec 18 02:39:24 2021
+Terminated at Sat Dec 18 02:39:26 2021
+Results reported at Sat Dec 18 02:39:26 2021
+
+Your job looked like:
+
+------------------------------------------------------------
+# LSBATCH: User input
+python code/analyze_bnn.py cifar10 ./output_aug_adv_resnet18/checkpoint.pth.tar 0.12 ./output_aug_adv_resnet18/ece --batch 1000 --samples
+------------------------------------------------------------
+
+Exited with exit code 1.
+
+Resource usage summary:
+
+    CPU time :                                   0.16 sec.
+    Max Memory :                                 6 MB
+    Average Memory :                             -
+    Total Requested Memory :                     8192.00 MB
+    Delta Memory :                               8186.00 MB
+    Max Swap :                                   -
+    Max Processes :                              -
+    Max Threads :                                -
+    Run time :                                   26 sec.
+    Turnaround time :                            15 sec.
+
+The output (if any) follows:
+
+  File "code/analyze_bnn.py", line 37
+    print("batch_idx\taccuracy\ttime", file=f, flush=True)
+                                           ^
+SyntaxError: invalid syntax
+Sender: LSF System <lsfadmin@eu-g3-039>
+Subject: Job 197696147: <python code/analyze_bnn.py cifar10 ./output_aug_adv_resnet18/checkpoint.pth.tar ./output_aug_adv_resnet18/ece --batch 1000 --samples 1> in cluster <euler> Exited
+
+Job <python code/analyze_bnn.py cifar10 ./output_aug_adv_resnet18/checkpoint.pth.tar ./output_aug_adv_resnet18/ece --batch 1000 --samples 1> was submitted from host <eu-login-05> by user <arschmid> in cluster <euler> at Tue Dec 21 15:18:44 2021
+Job was executed on host(s) <eu-g3-039>, in queue <gpu.4h>, as user <arschmid> in cluster <euler> at Tue Dec 21 15:18:56 2021
+</cluster/home/arschmid> was used as the home directory.
+</cluster/home/arschmid/PGD-Defense/output_aug_adv_resnet18> was used as the working directory.
+Started at Tue Dec 21 15:18:56 2021
+Terminated at Tue Dec 21 15:19:01 2021
+Results reported at Tue Dec 21 15:19:01 2021
+
+Your job looked like:
+
+------------------------------------------------------------
+# LSBATCH: User input
+python code/analyze_bnn.py cifar10 ./output_aug_adv_resnet18/checkpoint.pth.tar ./output_aug_adv_resnet18/ece --batch 1000 --samples 1
+------------------------------------------------------------
+
+Exited with exit code 1.
+
+Resource usage summary:
+
+    CPU time :                                   2.15 sec.
+    Max Memory :                                 327 MB
+    Average Memory :                             -
+    Total Requested Memory :                     8192.00 MB
+    Delta Memory :                               7865.00 MB
+    Max Swap :                                   -
+    Max Processes :                              -
+    Max Threads :                                -
+    Run time :                                   34 sec.
+    Turnaround time :                            17 sec.
+
+The output (if any) follows:
+
+Traceback (most recent call last):
+  File "code/analyze_bnn.py", line 31, in <module>
+    checkpoint = torch.load(args.base_classifier)
+  File "/cluster/apps/nss/gcc-8.2.0/python/3.8.5/x86_64/lib64/python3.8/site-packages/torch/serialization.py", line 594, in load
+    with _open_file_like(f, 'rb') as opened_file:
+  File "/cluster/apps/nss/gcc-8.2.0/python/3.8.5/x86_64/lib64/python3.8/site-packages/torch/serialization.py", line 230, in _open_file_like
+    return _open_file(name_or_buffer, mode)
+  File "/cluster/apps/nss/gcc-8.2.0/python/3.8.5/x86_64/lib64/python3.8/site-packages/torch/serialization.py", line 211, in __init__
+    super(_open_file, self).__init__(open(name, mode))
+FileNotFoundError: [Errno 2] No such file or directory: './output_aug_adv_resnet18/checkpoint.pth.tar'
