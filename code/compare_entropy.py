@@ -1,4 +1,4 @@
-# evaluate base classifier entropy
+# evaluate base classifier entropy and plot entropy
 
 import argparse
 import datetime
@@ -14,11 +14,13 @@ from datasets import get_dataset, DATASETS, get_num_classes
 import torch
 from torch.profiler import profile, record_function, ProfilerActivity
 
+import pandas as pd
+
 parser = argparse.ArgumentParser(description='Compare entropies of clean vs perturbed images')
 parser.add_argument("dataset", choices=DATASETS, help="which dataset")
 parser.add_argument("base_classifier", type=str, help="path to saved pytorch model of base classifier")
 parser.add_argument("sigma", type=float, help="noise hyperparameter")
-parser.add_argument("outfile", type=str, help="output file")
+parser.add_argument("outdir", type=str, default="entropy_results")
 
 parser.add_argument("--sample_size", type=int, default=10)
 parser.add_argument('--bbb-samples', type=int, default=1) 
@@ -46,8 +48,9 @@ if __name__ == "__main__":
     # test_loader = DataLoader(test_dataset, shuffle=False, batch_size=args.batch,
     #                          num_workers=args.workers, pin_memory=pin_memory)
     
-    # results = []
-    f = open(args.outfile, 'w')
+    os.makedirs(args.outdir, exist_ok = True)
+    results = []
+    f = open(os.path.join(args.outdir, "entropy.txt"), 'w+')
     print("idx\tclean_entropy\tnoise_entropy\tdiff", file=f, flush=True)
     for i in range(len(test_dataset)):
         
@@ -82,14 +85,23 @@ if __name__ == "__main__":
             diff = (noise_entropy - clean_entropy).mean()
 
             print("{}\t{}\t{}\t{}".format(i, clean_entropy, noise_entropy, diff), file=f, flush=True)
-            # res = {"clean_entropy": clean_entropy, "noise_entropy": noise_entropy, "diff": diff}
-            # results.append(res)
-            #print(res)
+            res = {"clean_entropy": clean_entropy, "noise_entropy": noise_entropy, "diff": diff}
+            results.append(res)
 
-    # np.save('entropy', results)
+    np.save(os.path.join(args.outdir, "entropy.npy"), results)
 
-
-
+    
+    # Plotting
+    entropy_table = pd.DataFrame.from_records(results)
+    entropy_table['clean_entropy'] = entropy_table['clean_entropy'].transform(lambda t: t.item())
+    entropy_table['mean_noise_entropy'] = entropy_table['noise_entropy']\
+                                      .transform(lambda l: np.array([t.cpu() for t in l]).mean())
+    entropy_table['diff'] = entropy_table['diff'].transform(lambda t: t.item())
+    plot = entropy_table[['clean_entropy', 'mean_noise_entropy']].plot(kind='hist', bins=20, \
+                                                            alpha=0.7, color=['#A0E8AF', '#FFCF56'])
+    fig = plot.get_figure()
+    fig.savefig(os.path.join(args.outdir, "clean_vs_mean_entropy.png"))
+    
         
 
     

@@ -32,7 +32,10 @@ to get real time std output.
 
 When the bjobs output shows `No unfinished job found`, an output file will be created at `<output filename>`.
 
-
+### Reproducing Entropy Result
+```
+python code/compare_entropy.py cifar10 <path_to_saved_model/checkpoint.pth.tar> 0.12 entropy_results/bbb_aug_adv_sample_10_bbb_8 --bbb-samples 8
+```
 
 
 # MS README: Provably Robust Deep Learning via Adversarially Trained Smoothed Classifiers
