@@ -375,7 +375,8 @@ def train(loader: DataLoader, model: torch.nn.Module, criterion, optimizer: Opti
 
 def sample_augmentation_noise(noise_sd, inputs):
     if args.noise_sd_sampling:
-        noise = torch.randn_like(inputs, device='cuda') * noise_sd * torch.rand_like(inputs, device='cuda')
+        scale_by = torch.rand((inputs.shape[0], 1, 1, 1), device='cuda')
+        noise = torch.randn_like(inputs, device='cuda') * noise_sd * scale_by
     else:
         noise = torch.randn_like(inputs, device='cuda') * noise_sd
     return noise
