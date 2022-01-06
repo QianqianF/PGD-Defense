@@ -23,12 +23,15 @@ class SWAGDiagonalModel(Module):
             raise ValueError(f'Invalid mode passed, valid values are {", ".join(modes)}.')
         self.use_state_dict = mode == 'state_dict'
 
-    def forward(self, *args, **kwargs):
+    def forward(self, n_samples, *args, **kwargs):
         swa_mean_param = self.mean.state_dict().values() if self.use_state_dict else self.mean.parameters()
         swa_second_moment_param = self.second_moment.state_dict().values() if self.use_state_dict else self.second_moment.parameters()
         model_param = self.inference_model.state_dict().values() if self.use_state_dict else self.inference_model.parameters()
         for p_swa_mean, p_swa_second_moment, p_model in zip(swa_mean_param, swa_second_moment_param, model_param):
-            p_model.detach().copy_(torch.randn(p_model.shape) * torch.sqrt(p_swa_second_moment - p_swa_mean**2) + p_swa_mean)
+            param_avg = torch.zeros_like(p_model)
+            for _ in range(n_samples):
+                param_avg += torch.randn(p_model.shape) * torch.sqrt(p_swa_second_moment - p_swa_mean**2) + p_swa_mean
+            p_model.detach().copy_(param_avg/n_samples)
         return self.inference_model(*args, **kwargs)
 
     def update_parameters(self, model):
