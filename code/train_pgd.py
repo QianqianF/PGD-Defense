@@ -196,8 +196,8 @@ def main():
     else:
         scheduler = StepLR(optimizer, step_size=args.lr_step_size, gamma=args.gamma)
     if args.swag:
-        swag_scheduler = SWALR(optimizer, swa_lr=args.swa_lr)
-        swag_model = SWAGDiagonalModel(model, model.device)
+        swag_scheduler = SWALR(optimizer, swa_lr=args.swag_lr)
+        swag_model = SWAGDiagonalModel(model, 'cuda')
 
     starting_epoch = 0
     logfilename = os.path.join(args.outdir, 'log.txt')
@@ -227,7 +227,7 @@ def main():
         else:
             init_logfile(logfilename, "epoch\ttime\tlr\ttrainloss\ttestloss\ttrainacc\ttestacc")
 
-    for epoch in range(starting_epoch, args.epochs + args.swa_epochs):
+    for epoch in range(starting_epoch, args.epochs + args.swag_epochs):
         if epoch < args.epochs:
             scheduler.step(epoch)
         else:
