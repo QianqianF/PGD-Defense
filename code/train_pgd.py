@@ -13,6 +13,7 @@ import time
 # from IPython import embed
 from architectures import ARCHITECTURES, get_architecture
 from attacks import Attacker, PGD_L2, DDN
+from swag import SWAGDiagonalModel
 from datasets import get_dataset, DATASETS, get_num_classes,\
                      MultiDatasetsDataLoader, TiTop50KDataset
 import numpy as np
@@ -26,6 +27,7 @@ import torch.optim as optim
 from torch.optim.lr_scheduler import ReduceLROnPlateau, StepLR
 from torch.utils.data import DataLoader
 from train_utils import AverageMeter, accuracy, init_logfile, log, copy_code, requires_grad_
+from torch.optim.swa_utils import SWALR
 
 #wandb login()
 #wandb.init(project="test-project", entity="pgd-defense")
@@ -98,15 +100,20 @@ parser.add_argument('--init-norm-DDN', default=256.0, type=float)
 parser.add_argument('--gamma-DDN', default=0.05, type=float)
 
 # Bayesian Approaches
-parser.add_argument('--bbb', action='store_true',
-                    help='Use Bayes by Backprob VI.')
+parser.add_argument('--bbb', action='store_true', help='Use Bayes by Backprob VI.')
 parser.add_argument('--bbb-ws-train', default=1, type=int, help="BbB: Number of weight samples at training time")
 parser.add_argument('--bbb-kl-posterior-prior-weight', default=1/50000, type=float, help="BbB: weight factor for the KL divergence between posterior and prior ditributions")
 
+parser.add_argument('--swag', action='store_true', help='Use SWAG-Diagonal.')
+parser.add_argument('--swag-lr', type=float, default=0.05)
+parser.add_argument('--swag-epochs', type=int, default=20)
 args = parser.parse_args()
 
 args.epsilon /= 256.0
 args.init_norm_DDN /= 256.0
+
+if not args.swag:
+    args.swag_epochs = 0
 
 # wandb.config = {
 #   "dataset": args.dataset,
@@ -188,12 +195,16 @@ def main():
         scheduler = ReduceLROnPlateau(optimizer, factor=args.gamma, patience=args.patience, threshold=args.threshold)
     else:
         scheduler = StepLR(optimizer, step_size=args.lr_step_size, gamma=args.gamma)
+    if args.swag:
+        swag_scheduler = SWALR(optimizer, swa_lr=args.swa_lr)
+        swag_model = SWAGDiagonalModel(model, model.device)
 
     starting_epoch = 0
     logfilename = os.path.join(args.outdir, 'log.txt')
 
     # Load latest checkpoint if exists (to handle philly failures) 
     model_path = os.path.join(args.outdir, 'checkpoint.pth.tar')
+    swag_model_path = os.path.join(args.outdir, 'swag_checkpoint.pth.tar')
     if args.resume:
         if os.path.isfile(model_path):
             print("=> loading checkpoint '{}'".format(model_path))
@@ -216,14 +227,20 @@ def main():
         else:
             init_logfile(logfilename, "epoch\ttime\tlr\ttrainloss\ttestloss\ttrainacc\ttestacc")
 
-    for epoch in range(starting_epoch, args.epochs):
-        scheduler.step(epoch)
+    for epoch in range(starting_epoch, args.epochs + args.swa_epochs):
+        if epoch < args.epochs:
+            scheduler.step(epoch)
+        else:
+            swag_scheduler.step(epoch)
         attacker.max_norm = np.min([args.epsilon, (epoch + 1) * args.epsilon/args.warmup])
         attacker.init_norm = np.min([args.epsilon, (epoch + 1) * args.epsilon/args.warmup])
 
         before = time.time()
         train_loss, train_acc = train(train_loader, model, criterion, optimizer, epoch, args.noise_sd, attacker)
-        test_loss, test_acc, test_acc_normal = test(test_loader, model, criterion, args.noise_sd, attacker)
+        if epoch < args.epochs:
+            test_loss, test_acc, test_acc_normal = test(test_loader, model, criterion, args.noise_sd, attacker)
+        else:
+            swag_model.update_parameters(model)
         after = time.time()
 
         if args.adv_training:
@@ -235,12 +252,20 @@ def main():
                 epoch, after - before,
                 scheduler.get_lr()[0], train_loss, test_loss, train_acc, test_acc))
 
-        torch.save({
-            'epoch': epoch + 1,
-            'arch': args.arch,
-            'state_dict': model.state_dict(),
-            'optimizer': optimizer.state_dict(),
-        }, model_path)
+        if epoch < args.epochs:
+            torch.save({
+                'epoch': epoch + 1,
+                'arch': args.arch,
+                'state_dict': model.state_dict(),
+                'optimizer': optimizer.state_dict(),
+            }, model_path)
+        elif epoch == args.epochs + args.swa_epochs - 1:
+            torch.save({
+                'epoch': epoch + 1,
+                'arch': args.arch,
+                'state_dict': swag_model.state_dict(),
+                'optimizer': optimizer.state_dict(),
+            }, swag_model_path)
 
 
 def get_minibatches(batch, num_batches):

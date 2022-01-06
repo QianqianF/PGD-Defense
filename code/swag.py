@@ -7,11 +7,10 @@ class SWAGDiagonalModel(Module):
         super(SWAGDiagonalModel, self).__init__()
         self.mean = deepcopy(model)
         self.second_moment = deepcopy(model)
-        self.inference_model = deepcopy(model)
+        self.inference_model = None
         if device is not None:
             self.mean = self.mean.to(device)
             self.second_moment = self.second_moment.to(device)
-            self.inference_model = self.inference_model.to(device)
         self.register_buffer('n_averaged',
                              torch.tensor(0, dtype=torch.long, device=device))
         def avg_fn(mean, second_moment, model_parameter, num_averaged):
@@ -24,6 +23,8 @@ class SWAGDiagonalModel(Module):
         self.use_state_dict = mode == 'state_dict'
 
     def forward(self, *args, **kwargs):
+        if self.inference_model is None:
+            self.inference_model = deepcopy(self.mean).to(self.mean.device)
         swa_mean_param = self.mean.state_dict().values() if self.use_state_dict else self.mean.parameters()
         swa_second_moment_param = self.second_moment.state_dict().values() if self.use_state_dict else self.second_moment.parameters()
         model_param = self.inference_model.state_dict().values() if self.use_state_dict else self.inference_model.parameters()
