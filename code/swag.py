@@ -11,6 +11,7 @@ class SWAGDiagonalModel(Module):
         if device is not None:
             self.mean = self.mean.to(device)
             self.second_moment = self.second_moment.to(device)
+            self.inference_model = self.inference_model.to(device)
         self.register_buffer('n_averaged',
                              torch.tensor(0, dtype=torch.long, device=device))
         def avg_fn(mean, second_moment, model_parameter, num_averaged):
