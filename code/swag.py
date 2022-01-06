@@ -47,7 +47,7 @@ class SWAGDiagonalModel(Module):
                 p_swa_mean.detach().copy_(p_model_)
                 p_swa_second_moment.detach().copy_(p_model_**2)
             else:
-                mean, second_moment = self.avg_fn(p_swa_mean.detach(), p_model_,
+                mean, second_moment = self.avg_fn(p_swa_mean.detach(), p_swa_second_moment.detach(),  p_model_,
                                                  self.n_averaged.to(device))
                 p_swa_mean.detach().copy_(mean)
                 p_swa_second_moment.detach().copy_(second_moment)
