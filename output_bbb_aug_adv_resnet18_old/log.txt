@@ -1,0 +1,2 @@
+epoch	time	lr	trainloss	testloss	trainacc	testacc	testaccNor
+0	2689.52	0.01	2.2	2.01	29.3	35.1	42.5

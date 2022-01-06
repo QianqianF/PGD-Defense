@@ -1,0 +1,1 @@
+epoch	time	lr	trainloss	testloss	trainacc	testacc	testaccNor
