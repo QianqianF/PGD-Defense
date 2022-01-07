@@ -259,7 +259,7 @@ def main():
                 'state_dict': model.state_dict(),
                 'optimizer': optimizer.state_dict(),
             }, model_path)
-        elif epoch == args.epochs + args.swa_epochs - 1:
+        elif epoch == args.epochs + args.swag_epochs - 1:
             torch.save({
                 'epoch': epoch + 1,
                 'arch': args.arch,
