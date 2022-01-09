@@ -7,6 +7,7 @@ from time import time
 from architectures import get_architecture
 from ece import ece
 from core import Smooth
+from swag import SWAGDiagonalModel
 from datasets import get_dataset, DATASETS, get_num_classes
 import torch
 from torch.utils.data.dataloader import DataLoader
@@ -24,12 +25,18 @@ parser.add_argument("--split", choices=["train", "test"], default="test", help="
 parser.add_argument('--workers', default=4, type=int, metavar='N',
                     help='number of data loading workers (default: 4)')
 parser.add_argument("--samples", default=8, type=int, help="samples of the BNN")
+
+parser.add_argument("--num-aug", default=5, type=int, help="number of data aug samples per each clean image")
+parser.add_argument("--sigma", default=0.12, type=int, help="sigma of data aug")
+parser.add_argument("--swag")
 args = parser.parse_args()
 
 if __name__ == "__main__":
     # load the base classifier
     checkpoint = torch.load(args.base_classifier)
     base_classifier = get_architecture(checkpoint["arch"], args.dataset)
+    if args.swag:
+        base_classifier = SWAGDiagonalModel(base_classifier, 'cuda')
     base_classifier.load_state_dict(checkpoint['state_dict'])
 
     # prepare output file
@@ -58,11 +65,21 @@ if __name__ == "__main__":
         # certify the prediction of g around x
         with torch.no_grad():
             x = x.cuda()
-            label = label.cuda()
+            label = label.repeat(args.num_aug+1).cuda()
+            batch = x.copy()
+
+            for j in range(args.num_aug):
+                noise = torch.randn_like(x, device='cuda') * args.sigma
+                batch = torch.cat((batch, x + noise))
+
             pred = 0.
-            for j in range(args.samples):
-                pred += torch.nn.functional.softmax(base_classifier(x), dim=1)
-            pred /= args.samples
+            if args.swag:
+                pred = base_classifier(batch, args.samples)
+            else:
+                for j in range(args.samples):
+                    pred += torch.nn.functional.softmax(base_classifier(batch), dim=1)
+                pred /= args.samples
+
         probability_batches.append(pred.cpu().numpy())
         label_batches.append(label.cpu().numpy())
         after_time = time()
