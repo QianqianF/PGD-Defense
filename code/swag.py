@@ -25,15 +25,15 @@ class SWAGDiagonalModel(Module):
 
     def forward(self, n_samples, *args, **kwargs):
         if self.inference_model is None:
-            self.inference_model = deepcopy(self.mean).to(self.mean.device)
+            self.inference_model = deepcopy(self.mean).to('cuda')
         swa_mean_param = self.mean.state_dict().values() if self.use_state_dict else self.mean.parameters()
         swa_second_moment_param = self.second_moment.state_dict().values() if self.use_state_dict else self.second_moment.parameters()
         model_param = self.inference_model.state_dict().values() if self.use_state_dict else self.inference_model.parameters()
-        class_probabilities_sum = torch.tensor(0., device='cuda')
+        class_probabilities_sum = 0. 
         for _ in range(n_samples):
             for p_swa_mean, p_swa_second_moment, p_model in zip(swa_mean_param, swa_second_moment_param, model_param):
-                p_model.detach().copy_(torch.randn(p_model.shape) * torch.sqrt(p_swa_second_moment - p_swa_mean**2) + p_swa_mean)
-            class_probabilities_sum += softmax(self.inference_model(*args, **kwargs))
+                p_model.detach().copy_(torch.randn(p_model.shape).cuda() * torch.sqrt(p_swa_second_moment - p_swa_mean**2) + p_swa_mean)
+            class_probabilities_sum += softmax(self.inference_model(*args, **kwargs), dim=1)
         return class_probabilities_sum / n_samples
 
     def update_parameters(self, model):

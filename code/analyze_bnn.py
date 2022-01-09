@@ -28,7 +28,7 @@ parser.add_argument("--samples", default=8, type=int, help="samples of the BNN")
 
 parser.add_argument("--num-aug", default=5, type=int, help="number of data aug samples per each clean image")
 parser.add_argument("--sigma", default=0.12, type=int, help="sigma of data aug")
-parser.add_argument("--swag")
+parser.add_argument("--swag", action="store_true")
 args = parser.parse_args()
 
 if __name__ == "__main__":
@@ -66,7 +66,7 @@ if __name__ == "__main__":
         with torch.no_grad():
             x = x.cuda()
             label = label.repeat(args.num_aug+1).cuda()
-            batch = x.copy()
+            batch = x.clone()
 
             for j in range(args.num_aug):
                 noise = torch.randn_like(x, device='cuda') * args.sigma
@@ -74,7 +74,7 @@ if __name__ == "__main__":
 
             pred = 0.
             if args.swag:
-                pred = base_classifier(batch, args.samples)
+                pred = base_classifier(args.samples, batch)
             else:
                 for j in range(args.samples):
                     pred += torch.nn.functional.softmax(base_classifier(batch), dim=1)
