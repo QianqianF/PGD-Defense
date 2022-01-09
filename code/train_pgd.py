@@ -13,7 +13,7 @@ import time
 # from IPython import embed
 from architectures import ARCHITECTURES, get_architecture
 from attacks import Attacker, PGD_L2, DDN
-from swag import SWAGDiagonalModel
+from swag import SWAGDiagonalModel, SWAGModel
 from datasets import get_dataset, DATASETS, get_num_classes,\
                      MultiDatasetsDataLoader, TiTop50KDataset
 import numpy as np
@@ -107,6 +107,7 @@ parser.add_argument('--bbb-kl-posterior-prior-weight', default=1/50000, type=flo
 parser.add_argument('--swag', action='store_true', help='Use SWAG-Diagonal.')
 parser.add_argument('--swag-lr', type=float, default=0.05)
 parser.add_argument('--swag-epochs', type=int, default=20)
+parser.add_argument('--swag-k', default=0, type=int)
 args = parser.parse_args()
 
 args.epsilon /= 256.0
@@ -197,7 +198,10 @@ def main():
         scheduler = StepLR(optimizer, step_size=args.lr_step_size, gamma=args.gamma)
     if args.swag:
         swag_scheduler = SWALR(optimizer, swa_lr=args.swag_lr)
-        swag_model = SWAGDiagonalModel(model, 'cuda')
+        if args.swag_k == 0:
+            swag_model = SWAGDiagonalModel(model, 'cuda')
+        else:
+            swag_model = SWAGModel(model, args.swag_k, 'cuda')
 
     starting_epoch = 0
     logfilename = os.path.join(args.outdir, 'log.txt')
