@@ -8,10 +8,16 @@ args = parser.parse_args()
 
 with open(args.file0) as inp:
     next(inp)
-    columns0 = list(zip(*(line.strip().split('\t') for line in inp)))
+    rows = [line.strip().split('\t') for line in inp]
+    if rows[-1][0] == "radius":
+        rows.pop()
+    columns0 = list(zip(*rows))
 with open(args.file1) as inp:
     next(inp)
-    columns1 = list(zip(*(line.strip().split('\t') for line in inp)))
+    rows = [line.strip().split('\t') for line in inp]
+    if rows[-1][0] == "radius":
+        rows.pop()
+    columns1 = list(zip(*rows))
 
 limit = min(len(columns0[0]), len(columns1[0]))
 getcontext().prec = 32 * 32 * 3 * 2
