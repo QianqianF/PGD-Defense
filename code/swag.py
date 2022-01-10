@@ -94,9 +94,9 @@ class SWAGModel(Module):
         class_probabilities_sum = 0. 
         self.train() # update BN statistics during inference
         for _ in range(n_samples):
-            for p_swa_mean, p_swa_second_moment, p_column, p_model in zip(swa_mean_param, swa_second_moment_param, swa_columns, model_param):
+            for p_swa_mean, p_swa_second_moment, p_columns, p_model in zip(swa_mean_param, swa_second_moment_param, swa_columns, model_param):
                 p_model.detach().copy_(p_swa_mean + 2**-0.5 * torch.sqrt(p_swa_second_moment - p_swa_mean**2) * torch.randn(p_model.shape, device='cuda')
-                + (2 * (self.k - 1))**-0.5 * torch.stack(p_column) * torch.randn((self.k, 1), device='cuda'))
+                + (2 * (self.k - 1))**-0.5 * torch.stack(p_columns) * torch.randn((self.k, 1), device='cuda'))
             class_probabilities_sum += softmax(self.inference_model(*args, **kwargs), dim=1)
         self.eval()
         return class_probabilities_sum / n_samples
@@ -104,8 +104,11 @@ class SWAGModel(Module):
     def update_parameters(self, model):
         swa_mean_param = self.mean.state_dict().values() if self.use_state_dict else self.mean.parameters()
         swa_second_moment_param = self.second_moment.state_dict().values() if self.use_state_dict else self.second_moment.parameters()
+        swa_columns = []
+        for column in self.columns:
+            swa_columns.append(column.state_dict().values() if self.use_state_dict else column.parameters())
         model_param = model.state_dict().values() if self.use_state_dict else model.parameters()
-        for p_swa_mean, p_swa_second_moment, p_model in zip(swa_mean_param, swa_second_moment_param, model_param):
+        for p_swa_mean, p_swa_second_moment, p_columns, p_model in zip(swa_mean_param, swa_second_moment_param, swa_columns, model_param):
             device = p_swa_mean.device
             p_model_ = p_model.detach().to(device)
             if self.n_averaged == 0:
@@ -117,10 +120,10 @@ class SWAGModel(Module):
                 p_swa_mean.detach().copy_(mean)
                 p_swa_second_moment.detach().copy_(second_moment)
             if self.filled_columns < self.k:
-                self.columns[self.filled_columns].detach().copy_(p_model_ - p_swa_mean.detach())
+                p_columns[self.filled_columns].detach().copy_(p_model_ - p_swa_mean.detach())
                 self.filled_columns += 1
             else:
-                self.columns.append(self.columns.pop(0))
-                self.columns[-1].detach().copy_(p_model_ - p_swa_mean.detach())
+                p_columns.append(p_columns.pop(0))
+                p_columns[-1].detach().copy_(p_model_ - p_swa_mean.detach())
 
         self.n_averaged += 1
