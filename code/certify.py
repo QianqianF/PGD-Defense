@@ -50,6 +50,7 @@ if __name__ == "__main__":
     # prepare output file
     f = open(args.outfile, 'w')
 
+    dataset = get_dataset(args.dataset, args.split)
     for pgd_steps in l_pgd_steps:
         for pgd_epsilon in l_pgd_epsilon:
 
@@ -65,7 +66,6 @@ if __name__ == "__main__":
                 print("idx\tlabel\tpredict\tradius\tcorrect\ttime", file=f, flush=True)
 
             # iterate through the dataset
-            dataset = get_dataset(args.dataset, args.split)
             radius_sum = 0.
             for i in range(len(dataset)):
 
