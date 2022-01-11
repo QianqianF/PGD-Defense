@@ -94,7 +94,7 @@ class SWAGModel(Module):
         class_probabilities_sum = 0. 
         self.train() # update BN statistics during inference
         for _ in range(n_samples):
-            for p_swa_mean, p_swa_second_moment, p_columns, p_model in zip(swa_mean_param, swa_second_moment_param, swa_columns, model_param):
+            for p_swa_mean, p_swa_second_moment, p_model, *p_columns in zip(swa_mean_param, swa_second_moment_param, model_param, *swa_columns):
                 p_model.detach().copy_(p_swa_mean + 2**-0.5 * torch.sqrt(p_swa_second_moment - p_swa_mean**2) * torch.randn(p_model.shape, device='cuda')
                 + (2 * (self.k - 1))**-0.5 * torch.stack(p_columns) * torch.randn((self.k, 1), device='cuda'))
             class_probabilities_sum += softmax(self.inference_model(*args, **kwargs), dim=1)
@@ -108,7 +108,7 @@ class SWAGModel(Module):
         for column in self.columns:
             swa_columns.append(column.state_dict().values() if self.use_state_dict else column.parameters())
         model_param = model.state_dict().values() if self.use_state_dict else model.parameters()
-        for p_swa_mean, p_swa_second_moment, p_columns, p_model in zip(swa_mean_param, swa_second_moment_param, swa_columns, model_param):
+        for p_swa_mean, p_swa_second_moment, p_model, *p_columns in zip(swa_mean_param, swa_second_moment_param, model_param, *swa_columns):
             device = p_swa_mean.device
             p_model_ = p_model.detach().to(device)
             if self.n_averaged == 0:
