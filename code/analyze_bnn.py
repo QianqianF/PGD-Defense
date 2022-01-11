@@ -7,7 +7,7 @@ from time import time
 from architectures import get_architecture
 from ece import ece
 from core import Smooth
-from swag import SWAGDiagonalModel
+from swag import SWAGDiagonalModel, SWAGModel
 from datasets import get_dataset, DATASETS, get_num_classes
 import torch
 from torch.utils.data.dataloader import DataLoader
@@ -29,6 +29,7 @@ parser.add_argument("--samples", default=8, type=int, help="samples of the BNN")
 parser.add_argument("--num-aug", default=5, type=int, help="number of data aug samples per each clean image")
 parser.add_argument("--sigma", default=0.12, type=int, help="sigma of data aug")
 parser.add_argument("--swag", action="store_true")
+parser.add_argument("--swag-full", action="store_true")
 args = parser.parse_args()
 
 if __name__ == "__main__":
@@ -37,6 +38,8 @@ if __name__ == "__main__":
     base_classifier = get_architecture(checkpoint["arch"], args.dataset)
     if args.swag:
         base_classifier = SWAGDiagonalModel(base_classifier, 'cuda')
+    elif args.swag_full:
+        base_classifier = SWAGModel(base_classifier, 'cuda')
     base_classifier.load_state_dict(checkpoint['state_dict'])
 
     # prepare output file
@@ -73,7 +76,7 @@ if __name__ == "__main__":
                 batch = torch.cat((batch, x + noise))
 
             pred = 0.
-            if args.swag:
+            if args.swag or args.swag_full:
                 pred = base_classifier(args.samples, batch)
             else:
                 for j in range(args.samples):
