@@ -245,6 +245,7 @@ def main():
             test_loss, test_acc, test_acc_normal = test(test_loader, model, criterion, args.noise_sd, attacker)
         else:
             swag_model.update_parameters(model)
+            test_loss, test_acc, test_acc_normal = np.nan, np.nan, np.nan
         after = time.time()
 
         if args.adv_training:
