@@ -29,7 +29,7 @@ parser.add_argument("--samples", default=8, type=int, help="samples of the BNN")
 parser.add_argument("--num-aug", default=5, type=int, help="number of data aug samples per each clean image")
 parser.add_argument("--sigma", default=0.12, type=int, help="sigma of data aug")
 parser.add_argument("--swag", action="store_true")
-parser.add_argument("--swag-full", action="store_true")
+parser.add_argument('--swag-k', default=0, type=int)
 args = parser.parse_args()
 
 if __name__ == "__main__":
@@ -37,9 +37,10 @@ if __name__ == "__main__":
     checkpoint = torch.load(args.base_classifier)
     base_classifier = get_architecture(checkpoint["arch"], args.dataset)
     if args.swag:
-        base_classifier = SWAGDiagonalModel(base_classifier, 'cuda')
-    elif args.swag_full:
-        base_classifier = SWAGModel(base_classifier, 'cuda')
+        if args.swag_k == 0:
+            base_classifier = SWAGDiagonalModel(base_classifier, 'cuda')
+        else:
+            base_classifier = SWAGModel(base_classifier, args.swag_k, 'cuda')
     base_classifier.load_state_dict(checkpoint['state_dict'])
 
     # prepare output file
@@ -76,7 +77,7 @@ if __name__ == "__main__":
                 batch = torch.cat((batch, x + noise))
 
             pred = 0.
-            if args.swag or args.swag_full:
+            if args.swag:
                 pred = base_classifier(args.samples, batch)
             else:
                 for j in range(args.samples):
