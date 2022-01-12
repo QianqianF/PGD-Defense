@@ -42,7 +42,8 @@ if __name__ == "__main__":
 
     if args.pgd_tune:
         l_pgd_steps = [1, 2, 3, 5]
-        l_pgd_epsilon = [0.05, 0.1, 0.2, 0.4, 0.8, 1.6]
+        # l_pgd_epsilon = [0.05, 0.1, 0.2, 0.4, 0.8, 1.6]
+        l_pgd_epsilon = [3.2, 6.4, 12.8, 25.6, 51.2, 102.4]
     else:
         l_pgd_steps = [args.pgd_steps]
         l_pgd_epsilon = [args.pgd_epsilon]
@@ -96,7 +97,8 @@ if __name__ == "__main__":
                 time_elapsed = str(datetime.timedelta(seconds=(after_time - before_time)))
                 print("{}\t{}\t{}\t{:.3}\t{}\t{}".format(
                     i, label, prediction, radius, correct, time_elapsed), file=f, flush=True)
-                radius_sum += radius
+                if prediction == label:
+                    radius_sum += radius
             print("radius sum: {}".format(radius_sum), file=f, flush=True)
 
     f.close()
