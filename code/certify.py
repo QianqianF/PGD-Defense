@@ -41,8 +41,9 @@ if __name__ == "__main__":
     base_classifier.load_state_dict(checkpoint['state_dict'])
 
     if args.pgd_tune:
-        l_pgd_steps = [1, 2, 3, 5, 10]
-        l_pgd_epsilon = [0.01, 0.1, 1.0, 7.0]
+        l_pgd_steps = [1, 2, 3, 5]
+        # l_pgd_epsilon = [0.05, 0.1, 0.2, 0.4, 0.8, 1.6]
+        l_pgd_epsilon = [3.2, 6.4, 12.8, 25.6, 51.2, 102.4]
     else:
         l_pgd_steps = [args.pgd_steps]
         l_pgd_epsilon = [args.pgd_epsilon]
@@ -50,6 +51,7 @@ if __name__ == "__main__":
     # prepare output file
     f = open(args.outfile, 'w')
 
+    dataset = get_dataset(args.dataset, args.split)
     for pgd_steps in l_pgd_steps:
         for pgd_epsilon in l_pgd_epsilon:
 
@@ -65,7 +67,7 @@ if __name__ == "__main__":
                 print("idx\tlabel\tpredict\tradius\tcorrect\ttime", file=f, flush=True)
 
             # iterate through the dataset
-            dataset = get_dataset(args.dataset, args.split)
+            radius_sum = 0.
             for i in range(len(dataset)):
 
                 # only certify every args.skip examples, and stop after args.max examples
@@ -95,5 +97,8 @@ if __name__ == "__main__":
                 time_elapsed = str(datetime.timedelta(seconds=(after_time - before_time)))
                 print("{}\t{}\t{}\t{:.3}\t{}\t{}".format(
                     i, label, prediction, radius, correct, time_elapsed), file=f, flush=True)
+                if prediction == label:
+                    radius_sum += radius
+            print("radius sum: {}".format(radius_sum), file=f, flush=True)
 
     f.close()
