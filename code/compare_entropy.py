@@ -13,8 +13,10 @@ from core import Smooth
 from datasets import get_dataset, DATASETS, get_num_classes
 import torch
 from torch.profiler import profile, record_function, ProfilerActivity
+from attacks import PGD_L2
 
 import pandas as pd
+import matplotlib.pyplot as plt
 
 parser = argparse.ArgumentParser(description='Compare entropies of clean vs perturbed images')
 parser.add_argument("dataset", choices=DATASETS, help="which dataset")
@@ -22,7 +24,7 @@ parser.add_argument("base_classifier", type=str, help="path to saved pytorch mod
 parser.add_argument("sigma", type=float, help="noise hyperparameter")
 parser.add_argument("outdir", type=str, default="entropy_results")
 
-parser.add_argument("--sample_size", type=int, default=10)
+parser.add_argument("--sample_size", type=int, default=5)
 parser.add_argument('--bbb-samples', type=int, default=1) 
 args = parser.parse_args()
 
@@ -39,6 +41,10 @@ def plot_entropy(results, plotname):
                                                             alpha=0.7, color=['#A0E8AF', '#FFCF56'])
     fig = plot.get_figure()
     fig.savefig(os.path.join(args.outdir, plotname))
+
+def showImage(im, imName):
+    plt.imshow(im)
+    plt.savefig(os.path.join(args.outdir, imName))
 
 
 if __name__ == "__main__":
@@ -103,6 +109,23 @@ if __name__ == "__main__":
             res_after = {"clean_entropy": clean_entropy, "noise_entropy": noise_entropy, "diff": diff}
             results.append(res)
             results_after.append(res_after)
+
+             # visualize image before and after for the first 5 images
+            if i < 5:
+                batch = torch.clip(batch, 0., 1.)
+                showImage(batch[0], "image_" + i + "_clean.png")
+                for j in range(args.sample_size):
+                    showImage(batch[j+1], "image_" + i + "_noise_j.png")
+
+                attacker = PGD_L2(steps=classifier.num_steps, device='cuda', max_norm=classifier.epsilon)
+                high_confidence_image = attacker.attack(classifier.base_classifier, x, None, entropy_attack=True, entropy_samples=classifier.entropy_samples)
+                
+                showImage(high_confidence_image[0], "image_" + i + "_clean_after.png")
+                for j in range(args.sample_size):
+                    showImage(high_confidence_image[j+1], "image_" + i + "_noise_" + j + "_after.png")
+
+
+            
 
     np.save(os.path.join(args.outdir, "entropy.npy"), results)
     np.save(os.path.join(args.outdir, "entropy_after.npy"), results_after)
