@@ -95,8 +95,10 @@ class SWAGModel(Module):
         self.train() # update BN statistics during inference
         for _ in range(n_samples):
             for p_swa_mean, p_swa_second_moment, p_model, *p_columns in zip(swa_mean_param, swa_second_moment_param, model_param, *swa_columns):
+                stack = torch.stack(p_columns)
+                # print(p_model.shape, stack.shape, (self.k, len()))
                 p_model.detach().copy_(p_swa_mean + 2**-0.5 * torch.sqrt(p_swa_second_moment - p_swa_mean**2) * torch.randn(p_model.shape, device='cuda')
-                + (2 * (self.k - 1))**-0.5 * torch.stack(p_columns) * torch.randn((self.k, 1), device='cuda'))
+                + (2 * (self.k - 1))**-0.5 * torch.matmul(stack.T, torch.randn((self.k,), device='cuda')).T) # torch.randn((self.k, *((len(stack.shape) - 1) * (1,))), device='cuda'))
             class_probabilities_sum += softmax(self.inference_model(*args, **kwargs), dim=1)
         self.eval()
         return class_probabilities_sum / n_samples

@@ -8,6 +8,7 @@ from architectures import get_architecture
 from intermediate import Intermediate
 from core import Smooth
 from datasets import get_dataset, DATASETS, get_num_classes
+from swag import SWAGDiagonalModel, SWAGModel
 import torch
 from torch.profiler import profile, record_function, ProfilerActivity
 
@@ -31,6 +32,9 @@ parser.add_argument("--pgd-epsilon", type=float, default=0.1, help="maximum l2 p
 parser.add_argument("--pgd-bnn-samples", type=int, default=1, help="BNN samples to take at each step of the entropy attack (leave at 1 for plain NNs)")
 parser.add_argument("--pgd-tune", action='store_true', help="try out different steps and epsilons")
 
+parser.add_argument("--swag", action="store_true")
+parser.add_argument('--swag-k', default=0, type=int)
+
 parser.add_argument("--profile", action='store_true')
 args = parser.parse_args()
 
@@ -38,6 +42,11 @@ if __name__ == "__main__":
     # load the base classifier
     checkpoint = torch.load(args.base_classifier)
     base_classifier = get_architecture(checkpoint["arch"], args.dataset)
+    if args.swag:
+        if args.swag_k == 0:
+            base_classifier = SWAGDiagonalModel(base_classifier, 'cuda')
+        else:
+            base_classifier = SWAGModel(base_classifier, args.swag_k, 'cuda')
     base_classifier.load_state_dict(checkpoint['state_dict'])
 
     if args.pgd_tune:
