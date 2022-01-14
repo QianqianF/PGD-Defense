@@ -43,6 +43,7 @@ def plot_entropy(results, plotname):
     fig.savefig(os.path.join(args.outdir, plotname))
 
 def showImage(im, imName):
+    im = im.transpose(0, 2)
     plt.imshow(im)
     plt.savefig(os.path.join(args.outdir, imName))
 
@@ -52,77 +53,61 @@ if __name__ == "__main__":
     checkpoint = torch.load(args.base_classifier)
     base_classifier = get_architecture(checkpoint["arch"], args.dataset)
     base_classifier.load_state_dict(checkpoint['state_dict'])
-    classifier = Intermediate(base_classifier=base_classifier, num_steps=1)
+    classifier = Intermediate(base_classifier=base_classifier, num_steps=1, epsilon=0.1)
 
     # create the test dataset
     # train_dataset = get_dataset(args.dataset, 'train')
     test_dataset = get_dataset(args.dataset, 'test')
 
     pin_memory = False
-
-    # labelled_loader = DataLoader(train_dataset, shuffle=True, batch_size=args.batch,
-    #                   num_workers=args.workers, pin_memory=pin_memory)
-    # train_loader = MultiDatasetsDataLoader([labelled_loader])
-    # test_loader = DataLoader(test_dataset, shuffle=False, batch_size=args.batch,
-    #                          num_workers=args.workers, pin_memory=pin_memory)
     
     os.makedirs(args.outdir, exist_ok = True)
     results = []
     results_after = []
     f = open(os.path.join(args.outdir, "entropy.txt"), 'w+')
     print("idx\tclean_entropy\tnoise_entropy\tdiff", file=f, flush=True)
-    for i in range(len(test_dataset)):
+    for i in range(3000):
         
-        with torch.no_grad():
-            (x, label) = test_dataset[i]
-            x = x[None, :].cuda()
-            label = torch.tensor([label] * (args.sample_size + 1)).cuda()
+        (x, label) = test_dataset[i]
+        x = x[None, :].cuda()
+        label = torch.tensor([label] * (args.sample_size + 1)).cuda()
 
-            _, channel, height, width = x.shape
-            batch = torch.zeros((args.sample_size+1, channel, height, width)).cuda()
-            batch[0] = x
+        _, channel, height, width = x.shape
+        batch = torch.zeros((args.sample_size+1, channel, height, width)).cuda()
+        batch[0] = x
 
-            for j in range(args.sample_size):
-                noise = torch.randn_like(x, device='cuda') * args.sigma
-                batch[j+1] = x + noise
+        for j in range(args.sample_size):
+            noise = torch.randn_like(x, device='cuda') * args.sigma
+            batch[j+1] = x + noise
 
-            if args.bbb_samples > 1:
-                _, class_probabilities = base_classifier.sample_elbo_with_output(batch,label, torch.nn.CrossEntropyLoss(), args.bbb_samples)
-            else:
-                logits = base_classifier(batch)
-                class_probabilities = F.softmax(logits, 1)
+        if args.bbb_samples > 1:
+            _, class_probabilities = base_classifier.sample_elbo_with_output(batch,label, torch.nn.CrossEntropyLoss(), args.bbb_samples)
+            class_probabilities_after = classifier(batch)
+        else:
+            logits = base_classifier(batch)
+            class_probabilities = F.softmax(logits, 1)
+            class_probabilities_after = classifier(batch)
+            class_probabilities_after = F.softmax(class_probabilities_after, 1)
 
-            batch_entropy = entropy(class_probabilities)
-            clean_entropy = batch_entropy[0]
-            noise_entropy = batch_entropy[1:]
-            diff = (noise_entropy - clean_entropy).mean()
+        batch_entropy = entropy(class_probabilities)
+        clean_entropy = batch_entropy[0]
+        noise_entropy = batch_entropy[1:]
+        diff = (noise_entropy - clean_entropy).mean()
 
-            _, class_probabilities_after = classifier(batch)
-            batch_entropy_after = entropy(class_probabilities_after)
-            clean_entropy_after = batch_entropy[0]
-            noise_entropy_after = batch_entropy[1:]
-            diff_after = (clean_entropy_after - noise_entropy_after).mean()
-            
+        
+        batch_entropy_after = entropy(class_probabilities_after)
+        clean_entropy_after = batch_entropy_after[0]
+        noise_entropy_after = batch_entropy_after[1:]
+        diff_after = (clean_entropy_after - noise_entropy_after).mean()
+        
+        diff_inter_clean = clean_entropy - clean_entropy_after
+        diff_inter_noise = noise_entropy - noise_entropy_after
 
-            print("{}\t{}\t{}\t{}".format(i, clean_entropy, noise_entropy, diff), file=f, flush=True)
-            res = {"clean_entropy": clean_entropy, "noise_entropy": noise_entropy, "diff": diff}
-            res_after = {"clean_entropy": clean_entropy, "noise_entropy": noise_entropy, "diff": diff}
-            results.append(res)
-            results_after.append(res_after)
-
-             # visualize image before and after for the first 5 images
-            if i < 5:
-                batch = torch.clip(batch, 0., 1.)
-                showImage(batch[0], "image_" + i + "_clean.png")
-                for j in range(args.sample_size):
-                    showImage(batch[j+1], "image_" + i + "_noise_j.png")
-
-                attacker = PGD_L2(steps=classifier.num_steps, device='cuda', max_norm=classifier.epsilon)
-                high_confidence_image = attacker.attack(classifier.base_classifier, x, None, entropy_attack=True, entropy_samples=classifier.entropy_samples)
-                
-                showImage(high_confidence_image[0], "image_" + i + "_clean_after.png")
-                for j in range(args.sample_size):
-                    showImage(high_confidence_image[j+1], "image_" + i + "_noise_" + j + "_after.png")
+        print("{}\t{}\t{}\t{}".format(i, clean_entropy, noise_entropy, diff), file=f, flush=True)
+        res = {"clean_entropy": clean_entropy, "noise_entropy": noise_entropy, "diff": diff}
+        res_after = {"clean_entropy": clean_entropy_after, "noise_entropy": noise_entropy_after, "diff": diff_after, "diff_inter_clean": diff_inter_clean, "diff_inter_noise": diff_inter_noise}
+        results.append(res)
+        results_after.append(res_after)
 
 
             
@@ -131,8 +116,35 @@ if __name__ == "__main__":
     np.save(os.path.join(args.outdir, "entropy_after.npy"), results_after)
     
     # Plotting
-    plot_entropy(results, "clean_vs_mean_entropy.png")
-    plot_entropy(results_after, "clean_vs_mean_entropy_after.png")
+    # plot_entropy(results, "clean_vs_mean_entropy.png")
+    # plot_entropy(results_after, "clean_vs_mean_entropy_after.png")
+
+    # visualize image before and after for the first 5 images
+    # for i in range(5):
+        
+    #     (x, label) = test_dataset[i]
+    #     x = x[None, :].cuda()
+    #     label = torch.tensor([label] * (args.sample_size + 1)).cuda()
+
+    #     _, channel, height, width = x.shape
+    #     batch = torch.zeros((args.sample_size+1, channel, height, width)).cuda()
+    #     batch[0] = x
+
+    #     for j in range(args.sample_size):
+    #         noise = torch.randn_like(x, device='cuda') * args.sigma
+    #         batch[j+1] = x + noise
+        
+    #     batch = torch.clip(batch, 0., 1.)
+    #     showImage(batch[0].detach().cpu(), "image_" + str(i) + "_clean.png")
+    #     for j in range(args.sample_size):
+    #         showImage(batch[j+1].detach().cpu(), "image_" + str(i) + "_noise_j.png")
+
+    #     attacker = PGD_L2(steps=classifier.num_steps, device='cuda', max_norm=classifier.epsilon)
+    #     high_confidence_image = attacker.attack(classifier.base_classifier, x, None, entropy_attack=True, entropy_samples=classifier.entropy_samples)
+        
+    #     showImage(high_confidence_image[0].detach().cpu(), "image_" + str(i) + "_clean_after.png")
+    #     for j in range(args.sample_size):
+    #         showImage(high_confidence_image[j+1].detach().cpu(), "image_" + str(i) + "_noise_" + str(j) + "_after.png")
     
         
 
