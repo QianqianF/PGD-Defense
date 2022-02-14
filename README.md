@@ -1,3 +1,15 @@
+# Attack is the Best Defense: Obtaining Stronger Robustness Guarantees in Randomized Smoothing through Uncertainty Projection
+
+We explored the idea of improving robustness guarantees through integrating uncertainty information into the prediction pipeline. Specifically, in this paper, we
+1. developed a uncertainty projection model that utilizes BNNs to build a base classifier that is robust to
+Gaussian noise with large radius
+2. evaluated the said method in terms of accuracy and certified radius, and compared it against the
+state-of-the-art methods on the CIFAR-10 dataset
+3. provided insights into how training methods, hyperparameter configurations, and base classifier
+calibration might impact the effectiveness of our method.
+
+[See our full project report](https://n.ethz.ch/~qifeng/asset/AttackIsTheBestDefense.pdf)
+
 Note: Our codebase is a fork of https://github.com/Hadisalman/smoothing-adversarial
 
 # Reproducing our experiments
