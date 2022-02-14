@@ -8,11 +8,11 @@ state-of-the-art methods on the CIFAR-10 dataset
 3. provided insights into how training methods, hyperparameter configurations, and base classifier
 calibration might impact the effectiveness of our method.
 
+[See our full project report](https://n.ethz.ch/~qifeng/asset/AttackIsTheBestDefense.pdf)
+
 <div style="text-align: center;">
   <img src="./method-overview.png" align="middle" width="50%">
 </div>
-
-[See our full project report](https://n.ethz.ch/~qifeng/asset/AttackIsTheBestDefense.pdf)
 
 Note: Our codebase is a fork of https://github.com/Hadisalman/smoothing-adversarial
 
